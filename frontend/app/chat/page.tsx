@@ -48,6 +48,7 @@ export default function ChatPage() {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const isAtBottomRef = useRef(true);
   const [unreadCount, setUnreadCount] = useState(0);
   
@@ -152,6 +153,11 @@ socket.on("newMessage", (msg) => {
       socketRef.current.emit("join", username);
     }
   }, [username]);
+
+  //autofocus effect
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
   // SMART AUTO SCROLL (FIXED)
   useEffect(() => {
@@ -845,6 +851,7 @@ return (
 
       {/* MESSAGE INPUT */}
       <textarea
+          ref={inputRef}
           value={input}
           onChange={handleTyping}
           onKeyDown={handleKeyDown}
