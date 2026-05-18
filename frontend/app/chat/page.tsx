@@ -226,6 +226,23 @@ socket.on("newMessage", (msg) => {
   });
 }
 
+
+
+function handleKeyDown(
+  e: React.KeyboardEvent<HTMLTextAreaElement>
+) {
+  // Shift + Enter → new line
+  if (e.key === "Enter" && e.shiftKey) {
+    return;
+  }
+
+  // Enter → send message
+  if (e.key === "Enter") {
+    e.preventDefault();
+    handleSend();
+  }
+}
+
   // TYPING
   function handleTyping(e: any) {
     setInput(e.target.value);
@@ -827,15 +844,17 @@ return (
       </button>
 
       {/* MESSAGE INPUT */}
-      <input
-        value={input}
-        onChange={handleTyping}
-        placeholder={
-          editingMessageId
-            ? "Edit your message..."
-            : "Type message"
-        }
-        className="min-w-[140px] flex-1 rounded-2xl border border-(--line) bg-white px-4 py-3 text-sm shadow-sm outline-none focus:border-slate-400"
+      <textarea
+          value={input}
+          onChange={handleTyping}
+          onKeyDown={handleKeyDown}
+          placeholder={
+            editingMessageId
+              ? "Edit your message..."
+              : "Type message"
+            }
+            rows={1}
+            className="min-w-[140px] flex-1 resize-none rounded-2xl border border-(--line) bg-white px-4 py-3 text-sm shadow-sm outline-none focus:border-slate-400"
       />
 
       {/* SEND BUTTON */}
