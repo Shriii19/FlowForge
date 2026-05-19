@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 import {
   DndContext,
@@ -11,6 +11,9 @@ import {
   useSensors,
   DragOverlay,
   defaultDropAnimationSideEffects,
+  type DragEndEvent,
+  type DragOverEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
 import { arrayMove, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { KanbanColumn } from "./KanbanColumn";
@@ -30,12 +33,18 @@ const COLUMNS = [
   { id: "todo", title: "To Do" },
   { id: "in_progress", title: "In Progress" },
   { id: "done", title: "Done" },
-];
+] as const;
+
+type TaskStatus = Task["status"];
+
+function isTaskStatus(value: unknown): value is TaskStatus {
+  return COLUMNS.some((column) => column.id === value);
+}
 
 export function KanbanBoard() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
-  const [socket, setSocket] = useState<any>(null);
+  const socketRef = useRef<ReturnType<typeof io> | null>(null);
 
   const handleEditTask = async (task: Task) => {
   const newTitle = window.prompt("Edit title:", task.title);
@@ -63,13 +72,27 @@ export function KanbanBoard() {
   }
 };
 
+  const fetchTasks = async () => {
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/tasks`);
+      if (res.ok) {
+        const data = await res.json();
+        setTasks(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch tasks", error);
+    }
+  };
+
   useEffect(() => {
     // Assuming backend runs on 5000 in dev
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
     const newSocket = io(apiUrl);
-    setSocket(newSocket);
+    socketRef.current = newSocket;
 
-    fetchTasks();
+    const loadTimer = window.setTimeout(() => {
+      void fetchTasks();
+    }, 0);
 
     newSocket.on("task-moved", (movedTask: Task) => {
       setTasks((prev) => {
@@ -97,21 +120,11 @@ export function KanbanBoard() {
     });
 
     return () => {
+      window.clearTimeout(loadTimer);
       newSocket.disconnect();
+      socketRef.current = null;
     };
   }, []);
-
-  const fetchTasks = async () => {
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/tasks`);
-      if (res.ok) {
-        const data = await res.json();
-        setTasks(data);
-      }
-    } catch (error) {
-      console.error("Failed to fetch tasks", error);
-    }
-  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -124,13 +137,13 @@ export function KanbanBoard() {
     })
   );
 
-  const handleDragStart = (event: any) => {
+  const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
     const task = tasks.find((t) => t.id === active.id);
     if (task) setActiveTask(task);
   };
 
-  const handleDragOver = (event: any) => {
+  const handleDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
     if (!over) return;
 
@@ -166,13 +179,14 @@ export function KanbanBoard() {
       setTasks((tasks) => {
         const activeIndex = tasks.findIndex((t) => t.id === activeId);
         const newTasks = [...tasks];
-        newTasks[activeIndex].status = overId as any;
+        if (activeIndex === -1 || !isTaskStatus(overId)) return tasks;
+        newTasks[activeIndex].status = overId;
         return arrayMove(newTasks, activeIndex, activeIndex);
       });
     }
   };
 
-  const handleDragEnd = async (event: any) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
   setActiveTask(null);
 
   const { active, over } = event;
@@ -187,7 +201,8 @@ export function KanbanBoard() {
   let newStatus = activeTask.status;
 
   if (over.data.current?.type === "Column") {
-    newStatus = over.id as any;
+    if (!isTaskStatus(over.id)) return;
+    newStatus = over.id;
   } else if (over.data.current?.type === "Task") {
     const overTask = tasks.find((t) => t.id === overId);
     if (overTask) {
@@ -246,9 +261,9 @@ export function KanbanBoard() {
     );
 
     // Emit socket updates
-    if (socket) {
+    if (socketRef.current) {
       reorderedTasks.forEach((task) => {
-        socket.emit("task-moved", task);
+        socketRef.current?.emit("task-moved", task);
       });
     }
   } catch (error) {

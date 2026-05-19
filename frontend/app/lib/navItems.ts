@@ -11,7 +11,10 @@ export const navItems: NavItems[] = [
         label: "Analytics", href: "/insights/analytics"
     },
     {
-        label: "tasks", href: "/insights/tasks"
+        label: "Feed", href: "/insights/feed"
+    },
+    {
+        label: "Tasks", href: "/insights/tasks"
     },
 
 ];

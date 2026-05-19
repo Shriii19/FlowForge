@@ -1,5 +1,19 @@
 @import "tailwindcss";
 
+@theme {
+  --color-primary: #0f766e;
+  --color-primary-dark: #115e59;
+  --color-primary-light: #eef2e7;
+  
+  --color-background: #f5f7f2;
+  --color-surface: #ffffff;
+  
+  --color-text-main: #1d2a20;
+  --color-text-muted: #5d6d62;
+  
+  --color-border-subtle: #dbe4d5;
+}
+
 :root {
 	--bg-page: #f5f7f2;
 	--bg-panel: #ffffff;

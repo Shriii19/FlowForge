@@ -8,11 +8,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const isPublicRoute =
     pathname === "/" || pathname === "/login" || pathname === "/signup";
+  const isInsightsRoute = pathname?.startsWith("/insights");
+
+  const hideSidebar = isPublicRoute || isInsightsRoute;
+
+  // Let Insights pages control their own padding
+  const mainClass = hideSidebar
+    ? "min-w-0 flex-1 overflow-x-hidden"
+    : "min-w-0 flex-1 overflow-x-hidden p-6";
 
   return (
-    <div className="flex min-h-screen">
-      {!isPublicRoute && <Sidebar />}
-     <main className={isPublicRoute ? "min-w-0 flex-1 overflow-x-hidden" : "min-w-0 flex-1 overflow-x-hidden p-6"}>{children}</main>
+    <div className="flex min-h-screen relative">
+      {!hideSidebar && <Sidebar />}
+      <main className={mainClass}>{children}</main>
     </div>
   );
 }
