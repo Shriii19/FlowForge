@@ -24,7 +24,10 @@ type FeedListProps = {
 
 export default function FeedList({ items, totalCount, onLoadMore }: FeedListProps) {
   const groupedItems = items.reduce<Record<string, FeedActivityItem[]>>((acc, item) => {
-    acc[item.group] = [...(acc[item.group] || []), item];
+    if (!acc[item.group]) {
+      acc[item.group] = [];
+    }
+    acc[item.group].push(item);
     return acc;
   }, {});
 
