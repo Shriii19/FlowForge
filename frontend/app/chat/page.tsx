@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type ChangeEvent } from "react";
 import { io, Socket } from "socket.io-client";
-import EmojiPicker from "emoji-picker-react";
+import EmojiPicker, { type EmojiClickData } from "emoji-picker-react";
 import { Smile, Paperclip, Mic, Square } from "lucide-react";
 
 type Message = {
@@ -19,6 +19,16 @@ type Message = {
     text: string;
   };
   isPinned?: boolean;
+};
+
+type ChatMessageResponse = {
+  id?: string;
+  username: string;
+  text: string;
+  image?: string | null;
+  audio?: string | null;
+  created_at: string;
+  status?: string | null;
 };
 
 export default function ChatPage() {
@@ -44,7 +54,7 @@ export default function ChatPage() {
   const audioChunksRef = useRef<Blob[]>([]);
 
   const socketRef = useRef<Socket | null>(null);
-  const typingTimeoutRef = useRef<any>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -67,7 +77,7 @@ export default function ChatPage() {
           return;
         }
 
-        const formatted = data.map((msg: any) => ({
+        const formatted = data.map((msg: ChatMessageResponse) => ({
           id: msg.id,
           user: msg.username,
           text: msg.text,
@@ -193,20 +203,6 @@ socket.on("newMessage", (msg) => {
 
   const currentImage = selectedImage;
   const currentAudio = audioBlob;
-  const localMessage: Message = {
-  id: Date.now().toString(),
-  user: username,
-  text: input,
-  time: new Date().toLocaleTimeString(),
-  status: "sent",
-  
-
-  ...(currentImage && { image: currentImage }),
-  ...(currentAudio && { audio: currentAudio }),
-};
-
-  
-
   // send text to backend
   await fetch("http://localhost:5000/api/chat", {
     method: "POST",
@@ -250,7 +246,7 @@ function handleKeyDown(
 }
 
   // TYPING
-  function handleTyping(e: any) {
+  function handleTyping(e: ChangeEvent<HTMLInputElement>) {
     setInput(e.target.value);
 
     if (socketRef.current && username.trim()) {
@@ -258,7 +254,7 @@ function handleKeyDown(
     }
   }
   //emoji select function
-  function handleEmojiClick(emojiData: any) {
+  function handleEmojiClick(emojiData: EmojiClickData) {
     setInput((prev) => prev + emojiData.emoji);
     setShowEmojiPicker(false);
   }

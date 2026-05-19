@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FolderKanban, Blocks, MessageSquare } from "lucide-react";
+import { LayoutDashboard, FolderKanban, Blocks, MessageSquare, BarChart3 } from "lucide-react";
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -11,6 +11,7 @@ export default function Sidebar() {
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/projects", label: "Projects", icon: FolderKanban },
     { href: "/workspace", label: "Workspace", icon: Blocks },
+    { href: "/insights/overview", label: "Insights", icon: BarChart3 },
     { href: "/chat", label: "Chat", icon: MessageSquare },
   ];
 
