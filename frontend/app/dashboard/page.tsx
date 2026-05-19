@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/app/lib/supabase";
 import Link from "next/link";
 import {
   Search,
@@ -54,12 +55,39 @@ export default function Dashboard() {
     { title: "Incidents", value: "2", icon: AlertTriangle },
   ];
 
-  const team = [
-    { name: "Alex", img: "https://i.pravatar.cc/40?img=1" },
-    { name: "Sam", img: "https://i.pravatar.cc/40?img=2" },
-    { name: "Jordan", img: "https://i.pravatar.cc/40?img=3" },
-    { name: "Taylor", img: "https://i.pravatar.cc/40?img=4" },
+  const [team, setTeam] = useState<{ name: string; email: string }[]>([]);
+  const [teamLoading, setTeamLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchTeamMembers = async () => {
+      try {
+        if (!supabase) { setTeamLoading(false); return; }
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) { setTeamLoading(false); return; }
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("name, email")
+          .limit(10);
+        if (!error && data) setTeam(data);
+      } catch (err) {
+        console.error("Failed to fetch team members:", err);
+      } finally {
+        setTeamLoading(false);
+      }
+    };
+    fetchTeamMembers();
+  }, []);
+
+  const getInitials = (name: string) =>
+    name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+
+  const avatarColors = [
+    "#10b981", "#3b82f6", "#8b5cf6",
+    "#f59e0b", "#ef4444", "#06b6d4",
   ];
+
+  const getAvatarColor = (name: string) =>
+    avatarColors[name.charCodeAt(0) % avatarColors.length];
 
   return (
     <div className="min-h-screen bg-slate-50 p-6 md:p-10">
@@ -272,17 +300,43 @@ export default function Dashboard() {
             Team Members
           </h2>
 
-          <div className="flex gap-5">
-            {team.map((member) => (
-              <div key={member.name} className="text-center">
-                <img
-                  src={member.img}
-                  className="w-12 h-12 rounded-full border hover:scale-105 transition"
-                />
-                <p className="text-xs mt-2 text-slate-600">{member.name}</p>
+          {teamLoading ? (
+            <div className="flex gap-5">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="text-center animate-pulse">
+                  <div className="w-12 h-12 rounded-full bg-slate-200 mx-auto" />
+                  <div className="h-2 w-10 bg-slate-200 rounded mt-2 mx-auto" />
+                </div>
+              ))}
+            </div>
+          ) : team.length > 0 ? (
+            <div className="flex flex-wrap gap-5">
+              {team.map((member) => (
+                <div key={member.email} className="text-center">
+                  <div
+                    className="w-12 h-12 rounded-full flex items-center justify-center text-white text-sm font-semibold hover:scale-105 transition mx-auto"
+                    style={{ backgroundColor: getAvatarColor(member.name) }}
+                  >
+                    {getInitials(member.name)}
+                  </div>
+                  <p className="text-xs mt-2 text-slate-600 max-w-[60px] truncate">
+                    {member.name}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-6 text-center">
+              <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mb-3">
+                <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
               </div>
-            ))}
-          </div>
+              <p className="text-sm font-medium text-slate-700">No team members yet</p>
+              <p className="text-xs text-slate-400 mt-1">Invite your team to get started</p>
+            </div>
+          )}
         </div>
 
         {/* 📌 BOTTOM */}
