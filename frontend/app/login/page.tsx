@@ -16,7 +16,7 @@ export default function Login() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    setNextPath(params.get("next"));
+    queueMicrotask(() => setNextPath(params.get("next")));
   }, []);
 
   const handleLogin = async () => {

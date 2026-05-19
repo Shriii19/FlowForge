@@ -8,9 +8,6 @@ import {
   TrendingUp,
   Rocket,
   AlertTriangle,
-  FolderKanban,
-  Users,
-  MessageSquare,
 } from "lucide-react";
 import {
   LineChart,
@@ -166,7 +163,7 @@ export default function Dashboard() {
                 Productivity Analytics
               </h2>
               <p className="text-sm text-slate-500">
-                Track your team's performance trends over time
+                Track your team&apos;s performance trends over time
               </p>
             </div>
 
@@ -219,6 +216,32 @@ export default function Dashboard() {
               Key analytics and intelligent recommendations to guide your
               workflow.
             </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Link
+                href="/insights/overview"
+                className="rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 transition"
+              >
+                Overview
+              </Link>
+              <Link
+                href="/insights/analytics"
+                className="rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 transition"
+              >
+                Analytics
+              </Link>
+              <Link
+                href="/insights/feed"
+                className="rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 transition"
+              >
+                Feed
+              </Link>
+              <Link
+                href="/insights/tasks"
+                className="rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 transition"
+              >
+                Tasks
+              </Link>
+            </div>
           </div>
 
           <div className="grid gap-6 md:grid-cols-3">
@@ -235,7 +258,7 @@ export default function Dashboard() {
               </div>
 
               <Link
-                href="/projects"
+                href="/insights/overview"
                 className="mt-5 inline-block text-sm font-medium text-emerald-600 hover:underline"
               >
                 View detailed report →
@@ -251,9 +274,12 @@ export default function Dashboard() {
                 today can further boost efficiency by 10%.
               </p>
 
-              <button className="mt-5 bg-white text-emerald-700 px-4 py-2 rounded-xl text-sm font-semibold hover:bg-slate-100 transition">
+              <Link
+                href="/insights/analytics"
+                className="mt-5 inline-block bg-white text-emerald-700 px-4 py-2 rounded-xl text-sm font-semibold hover:bg-slate-100 transition"
+              >
                 View Recommendations
-              </button>
+              </Link>
             </div>
 
             {/* 🚧 PROJECTS IN PROGRESS */}
@@ -285,7 +311,7 @@ export default function Dashboard() {
               </div>
 
               <Link
-                href="/projects"
+                href="/insights/tasks"
                 className="mt-5 inline-block text-sm font-medium text-emerald-600 hover:underline"
               >
                 Manage projects →
@@ -377,7 +403,13 @@ const btnStrong =
   "rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 transition";
 
 /* 🔹 Card */
-function Card({ icon, title, link }: any) {
+type CardProps = {
+  icon: React.ReactNode;
+  title: string;
+  link: string;
+};
+
+function Card({ icon, title, link }: CardProps) {
   return (
     <div className="bg-white p-6 rounded-2xl border shadow-sm hover:shadow-lg transition hover:-translate-y-1">
       <div className="mb-3 text-slate-700">{icon}</div>

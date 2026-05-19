@@ -4,8 +4,18 @@ import { randomUUID } from "crypto";
 
 export const runtime = "nodejs";
 
+type ProjectRow = {
+  id: string;
+  name: string;
+  description?: string | null;
+  members?: number | null;
+  tags?: string[] | null;
+  due?: string | null;
+  created_at?: string | null;
+};
+
 // 1. Unified Mapper: Ensure keys match your DB exactly
-const mapProjectRow = (row: any) => ({
+const mapProjectRow = (row: ProjectRow) => ({
   id: row.id,
   name: row.name,
   desc: row.description || "", // Standardize on 'description'

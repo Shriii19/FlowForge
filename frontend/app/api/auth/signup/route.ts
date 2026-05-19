@@ -6,6 +6,18 @@ import { randomUUID } from "crypto";
 
 export const runtime = "nodejs";
 
+type ProjectRow = {
+  id: string;
+  name: string;
+  description?: string | null;
+  desc?: string | null;
+  members?: number | null;
+  tags?: string[] | null;
+  due?: string | null;
+  created_at?: string | null;
+  createdAt?: string | null;
+};
+
 export async function POST(req: NextRequest) {
   try {
     const payload = await req.json();
@@ -210,7 +222,7 @@ export const GET =  async (request: Request) => {
      .eq("owner_id",userData.user.id)
      .order('created_at', {ascending: false});
   if(error) return NextResponse.json({error: error.message}, {status: 500});
-  const apiProjects = (projects || []).map((row: any) => ({
+  const apiProjects = (projects || []).map((row: ProjectRow) => ({
     id: row.id,
     name: row.name,
     desc: row.description ?? row.desc ?? "",

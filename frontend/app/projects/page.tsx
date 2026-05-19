@@ -6,12 +6,22 @@ import { isSupabaseConfigured, supabase } from "@/app/lib/supabase";
 import { useState, useEffect } from "react";
 import ProjectDialog from "@/app/components/ProjectDialog";
 
+type Project = {
+  id: string;
+  name: string;
+  desc: string;
+  members: number;
+  due: string | null;
+  tags: string[];
+  createdAt: string;
+};
+
 export default function ProjectsPage() {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [open, setOpen] = useState(false);
-  const [projects, setProjects] = useState<any[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Debounce search term
@@ -86,7 +96,7 @@ export default function ProjectsPage() {
     setOpen(true);
   };
 
-  const handleProjectCreated = (newProject: any) => {
+  const handleProjectCreated = (newProject: Project) => {
     setProjects((prev) => [
       {
         name: newProject.name || "",

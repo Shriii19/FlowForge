@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { isSupabaseConfigured, supabase } from "@/app/lib/supabase";
+import { supabase } from "@/app/lib/supabase";
 
 function generatePassword(length = 14): string {
   const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -48,7 +48,7 @@ export default function Signup() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    setNextPath(params.get("next"));
+    queueMicrotask(() => setNextPath(params.get("next")));
   }, []);
 
   const handleGeneratePassword = () => {
@@ -107,14 +107,14 @@ export default function Signup() {
         mobile: mobile.trim(),
       }),
     });
-    let  result: any = {};
-    let error: any = null;
+    let result: { error?: string } = {};
+    let error: { message: string } | null = null;
     try {
       result = await res.json();
       if (result.error){
         error = {message: result.error}
       }
-    } catch (e) {
+    } catch {
       error = {message: "Failed to parse server response."}
       setErrorMsg("An unexpected error occurred. Please try again.");
       setLoading(false);
