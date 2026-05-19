@@ -21,7 +21,12 @@ import {
 
 export default function Dashboard() {
   const [filter, setFilter] = useState("This Month");
+  const [mounted, setMounted] = useState(false);
 
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  
   const user = {
     name: "Anshi",
     role: "admin",
@@ -186,8 +191,9 @@ export default function Dashboard() {
           </div>
 
           {/* ✅ FIX: Use inline styles for guaranteed dimensions */}
-          <div style={{ width: "100%", height: "300px" }}>
-            <ResponsiveContainer width="100%" height="100%">
+          <div style={{ width: "100%", minWidth: 0, height: "300px", overflow: "hidden" }}>
+            {mounted && (
+            <ResponsiveContainer width="100%" height={300}>
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                 <XAxis dataKey="name" />
@@ -203,6 +209,7 @@ export default function Dashboard() {
                 />
               </LineChart>
             </ResponsiveContainer>
+            )}
           </div>
         </div>
 
