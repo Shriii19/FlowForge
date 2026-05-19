@@ -64,6 +64,16 @@ export default function Login() {
           onChange={(e) => setPassword(e.target.value)}
         />
 
+        <div className="flex justify-end mb-4">
+          <Link
+            href="/forgot-password"
+            className="text-xs underline underline-offset-4"
+            style={{ color: "var(--text-muted)" }}
+          >
+            Forgot password?
+          </Link>
+        </div>
+        
         <button
           onClick={handleLogin}
           disabled={loading || !isSupabaseConfigured}

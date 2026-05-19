@@ -58,6 +58,7 @@ export default function ChatPage() {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const isAtBottomRef = useRef(true);
   const [unreadCount, setUnreadCount] = useState(0);
   
@@ -163,6 +164,11 @@ socket.on("newMessage", (msg) => {
     }
   }, [username]);
 
+  //autofocus effect
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
   // SMART AUTO SCROLL (FIXED)
   useEffect(() => {
     if (isAtBottomRef.current) {
@@ -220,6 +226,23 @@ socket.on("newMessage", (msg) => {
   bottomRef.current?.scrollIntoView({
     behavior: "smooth",
   });
+}
+
+
+
+function handleKeyDown(
+  e: React.KeyboardEvent<HTMLTextAreaElement>
+) {
+  // Shift + Enter → new line
+  if (e.key === "Enter" && e.shiftKey) {
+    return;
+  }
+
+  // Enter → send message
+  if (e.key === "Enter") {
+    e.preventDefault();
+    handleSend();
+  }
 }
 
   // TYPING
@@ -823,15 +846,18 @@ return (
       </button>
 
       {/* MESSAGE INPUT */}
-      <input
-        value={input}
-        onChange={handleTyping}
-        placeholder={
-          editingMessageId
-            ? "Edit your message..."
-            : "Type message"
-        }
-        className="min-w-[140px] flex-1 rounded-2xl border border-(--line) bg-white px-4 py-3 text-sm shadow-sm outline-none focus:border-slate-400"
+      <textarea
+          ref={inputRef}
+          value={input}
+          onChange={handleTyping}
+          onKeyDown={handleKeyDown}
+          placeholder={
+            editingMessageId
+              ? "Edit your message..."
+              : "Type message"
+            }
+            rows={1}
+            className="min-w-[140px] flex-1 resize-none rounded-2xl border border-(--line) bg-white px-4 py-3 text-sm shadow-sm outline-none focus:border-slate-400"
       />
 
       {/* SEND BUTTON */}
