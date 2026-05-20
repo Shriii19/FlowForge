@@ -248,7 +248,7 @@ function handleKeyDown(
 }
 
   // TYPING
-  function handleTyping(e: ChangeEvent<HTMLInputElement>) {
+  function handleTyping(e: ChangeEvent<HTMLTextAreaElement>) {
     setInput(e.target.value);
 
     if (socketRef.current && username.trim()) {
