@@ -49,6 +49,7 @@ export default function ChatPage() {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editedText, setEditedText] = useState("");
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -87,6 +88,7 @@ export default function ChatPage() {
           status: msg.status || "sent",
         }));
         setMessages(formatted);
+        setLoading(false);
       });
 
 // NEW MESSAGE
@@ -448,51 +450,72 @@ return (
   </div>
 </div>
 
-    {/* MESSAGES */}
-    <div
-      ref={containerRef}
-      onScroll={() => {
-        const el = containerRef.current;
-        if (!el) return;
+{loading ? (
+  <div className="h-[55vh] space-y-4 overflow-hidden rounded-3xl border border-(--line) bg-white p-4 shadow-sm sm:h-[65vh] sm:p-5">
+    {[...Array(6)].map((_, i) => (
+      <div
+        key={i}
+        className={`flex ${
+          i % 2 === 0 ? "justify-start" : "justify-end"
+        }`}
+      >
+        <div className="max-w-[220px] animate-pulse rounded-2xl bg-slate-200 p-4">
+          <div className="mb-2 h-3 w-24 rounded bg-slate-300"></div>
 
-        const threshold = 100;
-        const atBottom =
-          el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+          <div className="h-3 w-40 rounded bg-slate-300"></div>
+        </div>
+      </div>
+    ))}
+  </div>
+) : (
 
-        isAtBottomRef.current = atBottom;
+  /* MESSAGES */
+  <div
+    ref={containerRef}
+    onScroll={() => {
+      const el = containerRef.current;
+      if (!el) return;
 
-        if (atBottom) {
-          setUnreadCount(0);
-        }
-      }}
-      className="h-[55vh] overflow-y-auto rounded-3xl border border-(--line) bg-white p-4 shadow-sm sm:h-[65vh] sm:p-5">
-      {filteredMessages.map((msg, i) => {
-        const prevMsg = filteredMessages[i - 1];
-        const isSameUser = prevMsg && prevMsg.user === msg.user;
-        const isMe = msg.user === username;
+      const threshold = 100;
 
-        return (
-          <div
-            key={i}
-            ref={
-              searchQuery &&
-              msg.text?.toLowerCase().includes(searchQuery.toLowerCase())
-                ? matchedMessageRef
-                : null
-            }
-            onMouseEnter={() => setActiveMessageId(msg.id || null)}
-            onMouseLeave={() => setActiveMessageId(null)}
-            onClick={() =>
-              setActiveMessageId(
-                activeMessageId === msg.id
-                  ? null
-                  : msg.id || null
-              )
-            }
-            className={`group relative flex ${
-              isMe ? "justify-end" : "justify-start"
-            } ${isSameUser ? "mt-1" : "mt-4"}`}
-          >
+      const atBottom =
+        el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+
+      isAtBottomRef.current = atBottom;
+
+      if (atBottom) {
+        setUnreadCount(0);
+      }
+    }}
+    className="h-[55vh] overflow-y-auto rounded-3xl border border-(--line) bg-white p-4 shadow-sm sm:h-[65vh] sm:p-5"
+  >
+    {filteredMessages.map((msg, i) => {
+      const prevMsg = filteredMessages[i - 1];
+      const isSameUser = prevMsg && prevMsg.user === msg.user;
+      const isMe = msg.user === username;
+
+      return (
+        <div
+          key={i}
+          ref={
+            searchQuery &&
+            msg.text?.toLowerCase().includes(searchQuery.toLowerCase())
+              ? matchedMessageRef
+              : null
+          }
+          onMouseEnter={() => setActiveMessageId(msg.id || null)}
+          onMouseLeave={() => setActiveMessageId(null)}
+          onClick={() =>
+            setActiveMessageId(
+              activeMessageId === msg.id
+                ? null
+                : msg.id || null
+            )
+          }
+          className={`group relative flex ${
+            isMe ? "justify-end" : "justify-start"
+          } ${isSameUser ? "mt-1" : "mt-4"}`}
+        >
             <div
               className={`w-fit max-w-[85%] sm:max-w-[320px] rounded-2xl p-4 shadow-sm ${
                 isMe
@@ -685,6 +708,7 @@ return (
 
       <div ref={bottomRef}></div>
     </div>
+    )}
 
     {/* UNREAD MESSAGE */}
     {unreadCount > 0 && (
