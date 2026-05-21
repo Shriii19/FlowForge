@@ -27,10 +27,22 @@ export default function Dashboard() {
     setMounted(true);
   }, []);
   
-  const user = {
-    name: "Anshi",
-    role: "admin",
-  };
+  const [user, setUser] = useState({ name: "User", role: "member" });
+
+  useEffect(() => {
+    const getUser = async () => {
+      if (!supabase) return;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const name =
+          session.user.user_metadata?.full_name ||
+          session.user.email ||
+          "User";
+        setUser({ name, role: "member" });
+      }
+    };
+    getUser();
+  }, []);
 
   // ✅ Dynamic chart data based on filter
   const chartData =
@@ -52,9 +64,9 @@ export default function Dashboard() {
         ];
 
   const stats = [
-    { title: "Velocity", value: "+18%", icon: TrendingUp },
-    { title: "Deploys", value: "24", icon: Rocket },
-    { title: "Incidents", value: "2", icon: AlertTriangle },
+    { title: "Velocity", value: "—", icon: TrendingUp },
+    { title: "Deploys", value: "—", icon: Rocket },
+    { title: "Incidents", value: "—", icon: AlertTriangle },
   ];
 
   const [team, setTeam] = useState<{ name: string; email: string }[]>([]);
