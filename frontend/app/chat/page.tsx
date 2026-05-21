@@ -868,9 +868,11 @@ return (
           <Mic size={20} />
         )}
       </button>
-
+      
+      
       {/* MESSAGE INPUT */}
-      <textarea
+      <div className="flex-1">
+        <textarea
           ref={inputRef}
           value={input}
           onChange={handleTyping}
@@ -879,10 +881,21 @@ return (
             editingMessageId
               ? "Edit your message..."
               : "Type message"
-            }
-            rows={1}
-            className="min-w-[140px] flex-1 resize-none rounded-2xl border border-(--line) bg-white px-4 py-3 text-sm shadow-sm outline-none focus:border-slate-400"
-      />
+          }
+          rows={1}
+          className="min-w-[140px] w-full resize-none rounded-2xl border border-(--line) bg-white px-4 py-3 text-sm shadow-sm outline-none focus:border-slate-400"
+        />
+
+        <p
+          className={`mt-1 text-right text-xs ${
+            input.length > 450
+              ? "text-red-500"
+              : "text-slate-400"
+          }`}
+        >
+          {input.length} / 500
+        </p>
+      </div>
 
       {/* SEND BUTTON */}
       <button
