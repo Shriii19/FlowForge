@@ -354,7 +354,12 @@ function stopRecording() {
     // load message into input
     setInput(currentText);
 }
+    function clearSearch() {
+      setSearchQuery("");
+      setActiveMessageId(null);
 
+      matchedMessageRef.current = null;
+    }
 
 const filteredMessages = messages.filter((msg) => {
   const query = searchQuery.toLowerCase();
@@ -418,13 +423,18 @@ return (
       type="text"
       value={searchQuery}
       onChange={(e) => setSearchQuery(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          clearSearch();
+        }
+     }}
       placeholder="Search messages or users..."
       className="w-full rounded-xl border border-(--line) px-4 py-2 pr-10 text-sm outline-none transition focus:border-slate-400"
-    />
+  />
 
     {searchQuery && (
       <button
-        onClick={() => setSearchQuery("")}
+        onClick={clearSearch}
         className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-400 hover:text-slate-600"
       >
         ✕
