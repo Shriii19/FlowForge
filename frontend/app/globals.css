@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined');
 @import "tailwindcss";
 
 @theme {
@@ -53,5 +54,13 @@ body {
 
 .accent-btn:hover {
 	background: var(--accent-strong);
+}
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+}
+input {
+  border: none;
+  outline: none;
+  box-shadow: none;
 }
 

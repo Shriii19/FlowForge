@@ -22,15 +22,34 @@ export default function TaskHistoryTable({ rows, query, onQueryChange }: TaskHis
         <h3 className="font-headline-md text-[20px] text-on-surface font-bold">Journey History</h3>
 
         <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2 border-b border-outline-variant py-1">
-            <span className="material-symbols-outlined text-outline text-[18px]">search</span>
+          <div className="flex items-center rounded-xl border border-outline-variant bg-surface px-3 h-11 transition focus-within:border-primary">
+            <span
+              className="material-symbols-outlined text-outline text-[18px]"
+              aria-hidden="true"
+            >
+              search
+            </span>
             <input
-              className="bg-transparent border-none focus:ring-0 text-label-md font-label-md w-40 p-0 placeholder:text-outline"
+              className="h-full w-56 bg-transparent !border-0 shadow-none outline-none focus:outline-none focus:ring-0 focus:border-0 px-2 text-sm text-on-surface placeholder:text-outline"
               placeholder="Search task ID..."
               type="text"
               value={query}
               onChange={(event) => onQueryChange(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  onQueryChange("");
+               }
+              }}
             />
+            {query && (
+              <button
+                type="button"
+                onClick={() => onQueryChange("")}
+                className="text-outline hover:text-primary transition-colors"
+              >
+                ✕
+              </button>
+       )}
           </div>
           <button className="text-primary font-label-md text-label-md hover:opacity-70 transition-opacity" type="button">
             Export Records
