@@ -1,5 +1,6 @@
 import "./globals.css";
 import AppShell from "@/app/components/AppShell";
+import { ToastProvider } from "@/app/context/ToastContext";
 
 export default function RootLayout({
   children,
@@ -9,7 +10,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <AppShell>{children}</AppShell>
+        <ToastProvider>
+          <AppShell>{children}</AppShell>
+        </ToastProvider>
       </body>
     </html>
   );

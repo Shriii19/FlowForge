@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { isSupabaseConfigured, supabase } from "@/app/lib/supabase";
+import { useToast } from "@/app/context/ToastContext";
 
 export default function Login() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -21,17 +23,12 @@ export default function Login() {
 
   const handleLogin = async () => {
     if (!supabase) {
-      alert("Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in frontend/.env.local.");
+      showToast("Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in frontend/.env.local.", "error");
       return;
     }
 
     if (!email || !password) {
-      alert("Please enter your email and password.");
-      return;
-    }
-
-    if (!supabase) {
-      alert("Supabase is not configured.");
+      showToast("Please enter your email and password.", "error");
       return;
     }
 
@@ -42,7 +39,7 @@ export default function Login() {
     });
     setLoading(false);
 
-    if (error) alert(error.message);
+    if (error) showToast(error.message, "error");
     else router.push(redirectPath);
   };
 
