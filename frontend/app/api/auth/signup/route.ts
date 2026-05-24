@@ -2,7 +2,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
-import { signupSchema } from "@/lib/validations/auth";
+import { signupSchema } from "../../../../lib/validations/auth";
 
 
 export const runtime = "nodejs";
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     if (!validation.success) {
       return NextResponse.json(
         {
-          error: validation.error.errors[0].message,
+          error: validation.error.issues[0].message,
         },
         { status: 400 }
       );
