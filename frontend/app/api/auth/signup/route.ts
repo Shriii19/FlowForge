@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 
+const USERNAME_REGEX = /^[a-zA-Z0-9_]{3,20}$/;
 
 export const runtime = "nodejs";
 
@@ -27,6 +28,17 @@ export async function POST(req: NextRequest) {
     if (!email || !password || !name || !username) {
       return NextResponse.json(
         { error: "Missing required fields: email, password, name, username are required." }, 
+        { status: 400 }
+      );
+    }
+
+    // Username format validation
+    if (!USERNAME_REGEX.test(username)) {
+      return NextResponse.json(
+        {
+          error:
+            "Username can only contain letters, numbers, and underscores.",
+        },
         { status: 400 }
       );
     }
@@ -86,7 +98,7 @@ export async function POST(req: NextRequest) {
 
     if (existingProfile) {
       return NextResponse.json(
-        { error: "Username already taken." }, 
+        { error: "Account already exists." }, 
         { status: 400 }
       );
     }
@@ -113,7 +125,7 @@ export async function POST(req: NextRequest) {
         message.includes("user already")
       ) {
         return NextResponse.json(
-          { error: "Email already registered." },
+          { error: "Account already exists." },
           { status: 400 }
         );
       }
