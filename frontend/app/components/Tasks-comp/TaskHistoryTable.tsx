@@ -22,9 +22,34 @@ export default function TaskHistoryTable({ rows, query, onQueryChange }: TaskHis
         <h3 className="font-headline-md text-[20px] text-on-surface font-bold">Journey History</h3>
 
         <div className="flex items-center gap-6">
-          <div className="flex items-center rounded-xl border border-outline-variant bg-surface px-3 h-11 transition focus-within:border-primary">
+          <div
+            className="
+              group
+              flex items-center gap-2
+              h-12 px-4
+              rounded-2xl
+              border border-white/20
+              bg-white/70
+              backdrop-blur-md
+              shadow-sm 
+              hover:shadow-lg
+              hover:-translate-y-[1px]
+              focus-within:scale-[1.01]
+              focus-within:shadow-lg
+              transition-all duration-300 ease-out
+              focus-within:ring-4
+              focus-within:ring-primary/20
+              focus-within:border-primary
+            "
+          >
             <span
-              className="material-symbols-outlined text-outline text-[18px]"
+              className="
+                material-symbols-outlined
+                text-slate-400
+                text-[20px]
+                transition-all duration-300
+                group-focus-within:text-primary
+              "
               aria-hidden="true"
             >
               search
@@ -45,7 +70,14 @@ export default function TaskHistoryTable({ rows, query, onQueryChange }: TaskHis
               <button
                 type="button"
                 onClick={() => onQueryChange("")}
-                className="text-outline hover:text-primary transition-colors"
+                className="
+                  text-slate-400
+                  hover:text-primary
+                  hover:scale-110
+                  active:scale-95
+                  transition-all duration-200
+                "
+                aria-label="Clear search"
               >
                 ✕
               </button>
