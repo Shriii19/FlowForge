@@ -2,6 +2,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
+import { signupSchema } from "@/lib/validations/auth";
 
 
 export const runtime = "nodejs";
@@ -21,41 +22,29 @@ type ProjectRow = {
 export async function POST(req: NextRequest) {
   try {
     const payload = await req.json();
-    const { email, password, name, username, mobile, description, members, due, tags } = payload || {};
-
-    // Input validation
-    if (!email || !password || !name || !username) {
+    const validation = signupSchema.safeParse(payload);
+    if (!validation.success) {
       return NextResponse.json(
-        { error: "Missing required fields: email, password, name, username are required." }, 
-        { status: 400 }
-      );
-    }
-    
-    // Email format validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return NextResponse.json(
-        { error: "Invalid email format." }, 
+        {
+          error: validation.error.errors[0].message,
+        },
         { status: 400 }
       );
     }
 
-    // Password strength
-    if (password.length < 6) {
-      return NextResponse.json(
-        { error: "Password must be at least 6 characters long." }, 
-        { status: 400 }
-      );
-    }
+    const {
+      email,
+      password,
+      name,
+      username,
+      mobile,
+      description,
+      members,
+      due,
+      tags,
+    } = validation.data;
 
-    // Username validation
-    if (username.length < 3 || username.length > 20) {
-      return NextResponse.json(
-        { error: "Username must be between 3-20 characters." }, 
-        { status: 400 }
-      );
-    }
-    
+        
     // Environment variables check
     if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
       console.error("Missing Supabase environment variables");
