@@ -2,8 +2,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
-
-const USERNAME_REGEX = /^[a-zA-Z0-9_]{3,20}$/;
+import { signupSchema } from "../../../../lib/validations/auth";
 
 export const runtime = "nodejs";
 
@@ -22,58 +21,29 @@ type ProjectRow = {
 export async function POST(req: NextRequest) {
   try {
     const payload = await req.json();
-    const { email, password, name, username, mobile, description, members, due, tags } = payload || {};
-
-    // Input validation
-    if (!email || !password || !name || !username) {
-      return NextResponse.json(
-        { error: "Missing required fields: email, password, name, username are required." }, 
-        { status: 400 }
-      );
-    }
-
-    // Username format validation
-    if (!USERNAME_REGEX.test(username)) {
+    const validation = signupSchema.safeParse(payload);
+    if (!validation.success) {
       return NextResponse.json(
         {
-          error:
-            "Username can only contain letters, numbers, and underscores.",
-        },
-        { status: 400 }
-      );
-    }
-    
-    // Email format validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return NextResponse.json(
-        { error: "Invalid email format." }, 
-        { status: 400 }
-      );
-    }
-
-    // Password strength
-    const STRONG_PASSWORD_REGEX =
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/;
-
-    if (!STRONG_PASSWORD_REGEX.test(password)) {
-      return NextResponse.json(
-        {
-          error:
-            "Password must be at least 8 characters and include uppercase, lowercase, number, and special character.",
+          error: validation.error.issues[0].message,
         },
         { status: 400 }
       );
     }
 
-    // Username validation
-    if (username.length < 3 || username.length > 20) {
-      return NextResponse.json(
-        { error: "Username must be between 3-20 characters." }, 
-        { status: 400 }
-      );
-    }
-    
+    const {
+      email,
+      password,
+      name,
+      username,
+      mobile,
+      description,
+      members,
+      due,
+      tags,
+    } = validation.data;
+
+        
     // Environment variables check
     if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
       console.error("Missing Supabase environment variables");
