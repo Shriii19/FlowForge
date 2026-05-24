@@ -4,7 +4,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { signupSchema } from "../../../../lib/validations/auth";
 
-
 export const runtime = "nodejs";
 
 type ProjectRow = {
@@ -75,7 +74,7 @@ export async function POST(req: NextRequest) {
 
     if (existingProfile) {
       return NextResponse.json(
-        { error: "Username already taken." }, 
+        { error: "Account already exists." }, 
         { status: 400 }
       );
     }
@@ -102,7 +101,7 @@ export async function POST(req: NextRequest) {
         message.includes("user already")
       ) {
         return NextResponse.json(
-          { error: "Email already registered." },
+          { error: "Account already exists." },
           { status: 400 }
         );
       }
