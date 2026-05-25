@@ -116,16 +116,48 @@ export async function POST(req: NextRequest) {
     const user = userData.user;
     
     // 4. Create profile row
+    const profilePayload = {
+      id: user.id,
+      email: user.email!,
+      name: user.user_metadata.full_name as string,
+      username: user.user_metadata.username as string,
+      mobile: user.user_metadata.mobile as string | null,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data: duplicateCheck } = await supabaseAdmin
+      .from("profiles")
+      .select("id")
+      .eq("username", profilePayload.username)
+      .maybeSingle();
+
+    if (duplicateCheck) {
+      await supabaseAdmin.auth.admin.deleteUser(user.id);
+
+      return NextResponse.json(
+        { error: "Account already exists." },
+        { status: 400 }
+      );
+    }
+
     const { error: profileError } = await supabaseAdmin
       .from("profiles")
-      .insert([{
-        id: user.id,
-        email: user.email!,
-        name: user.user_metadata.full_name as string,
-        username: user.user_metadata.username as string,
-        mobile: user.user_metadata.mobile as string | null,
-        updated_at: new Date().toISOString(),
-      }]);
+      .insert([profilePayload]);
+    
+    if (
+      profileError &&
+      (
+        profileError.message.toLowerCase().includes("duplicate") ||
+        profileError.message.toLowerCase().includes("unique")
+      )
+    ) {
+      await supabaseAdmin.auth.admin.deleteUser(user.id);
+
+      return NextResponse.json(
+        { error: "Account already exists." },
+        { status: 400 }
+      );
+    }
 
     if (profileError) {
       console.error("Profile creation error:", profileError);
