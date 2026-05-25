@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { signupSchema } from "../../../../lib/validations/auth";
+import { signupRateLimiter } from "../../../../lib/rateLimiter";
 
 export const runtime = "nodejs";
 
@@ -20,6 +21,21 @@ type ProjectRow = {
 
 export async function POST(req: NextRequest) {
   try {
+    const ip =
+      req.headers.get("x-forwarded-for") ||
+      req.headers.get("x-real-ip") ||
+      "unknown";
+
+    try {
+      await signupRateLimiter.consume(ip);
+    } catch {
+      return NextResponse.json(
+        {
+          error: "Too many signup attempts. Please try again later.",
+        },
+        { status: 429 }
+      );
+    }
     const payload = await req.json();
     const validation = signupSchema.safeParse(payload);
     if (!validation.success) {
