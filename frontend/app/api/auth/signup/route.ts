@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { signupSchema } from "../../../../lib/validations/auth";
+import { handleApiError } from "../../../../lib/apiErrorHandler";
 
 export const runtime = "nodejs";
 
