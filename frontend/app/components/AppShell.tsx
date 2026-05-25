@@ -1,4 +1,5 @@
 "use client";
+import CommandPalette from "./CommandPalette";
 
 import { usePathname } from "next/navigation";
 import Sidebar from "./Sidebar";
@@ -19,8 +20,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen relative">
+      <CommandPalette />
+
       {!hideSidebar && <Sidebar />}
-      <main className={mainClass}>{children}</main>
+
+      <main className={mainClass}>
+        {children}
+      </main>
     </div>
   );
 }
