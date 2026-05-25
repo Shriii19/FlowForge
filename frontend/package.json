@@ -25,6 +25,7 @@
     "react-dom": "19.2.4",
     "react-loading-skeleton": "^3.5.0",
     "recharts": "^3.8.1",
+    "sanitize-html": "^2.17.4",
     "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
@@ -32,6 +33,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/sanitize-html": "^2.16.1",
     "cross-env": "^10.1.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.3",

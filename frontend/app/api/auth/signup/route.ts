@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { signupSchema } from "../../../../lib/validations/auth";
+import { sanitizeInput } from "../../../../lib/sanitizeInput";
 
 export const runtime = "nodejs";
 
@@ -42,6 +43,12 @@ export async function POST(req: NextRequest) {
       due,
       tags,
     } = validation.data;
+
+    const sanitizedName = sanitizeInput(name);
+    const sanitizedUsername = sanitizeInput(username);
+    const sanitizedDescription = description
+      ? sanitizeInput(description)
+      : null;
 
         
     // Environment variables check
@@ -86,8 +93,8 @@ export async function POST(req: NextRequest) {
       password,
       email_confirm: true,
       user_metadata: {
-        full_name: name.trim(),
-        username: username.toLowerCase().trim(),
+        full_name: sanitizedName,
+        username: sanitizedUsername.toLowerCase(),
         mobile: mobile?.trim() || null,
       },
     });
@@ -145,7 +152,7 @@ export async function POST(req: NextRequest) {
       .insert([{
         id: randomUUID(),
         name,
-        description: description || null,
+        description: sanitizedDescription,
         owner_id: user.id,
         members: typeof members === 'number' ? members : (members ? Number(members) : 1),
         due: due ? new Date(due).toISOString().slice(0,10) : null,
@@ -184,8 +191,9 @@ export async function POST(req: NextRequest) {
     
   } catch (error) {
     console.error("Registration error:", error);
+
     return NextResponse.json(
-      { error: "Internal server error." }, 
+      { error: "Internal server error." },
       { status: 500 }
     );
   }
