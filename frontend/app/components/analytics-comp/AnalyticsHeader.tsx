@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import NotificationsPanel from "@/app/components/NotificationsPanel";
 
 type AnalyticsHeaderProps = {
   sprint: string;
@@ -60,9 +61,8 @@ export default function AnalyticsHeader({
         </div>
 
         <div className="flex items-center gap-4">
-          <button className="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-all duration-200 active:scale-90" type="button">
-            <span className="material-symbols-outlined">notifications</span>
-          </button>
+          <NotificationsPanel />
+          
           <button className="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-all duration-200 active:scale-90" type="button">
             <span className="material-symbols-outlined">settings</span>
           </button>
