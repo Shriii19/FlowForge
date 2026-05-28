@@ -32,29 +32,51 @@ export default function Login() {
       return;
     }
 
-    setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    setLoading(false);
+  setLoading(true);
 
-    if (error) showToast(error.message, "error");
-    else router.push(redirectPath);
-  };
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  console.log("LOGIN DATA:", data);
+  console.log("LOGIN ERROR:", error);
+
+  setLoading(false);
+
+  if (error) {
+    console.error(error);
+    alert(error.message);
+    showToast(error.message, "error");
+    return;
+  }
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  console.log("SESSION:", session);
+
+  if (session) {
+    router.push("/dashboard");
+    router.refresh();
+  }
+};
 
   return (
     <div className="flex h-screen items-center justify-center bg-zinc-950 text-white">
-      <div className="bg-zinc-900 p-6 rounded-xl w-80">
+      <form onSubmit={(e) => { e.preventDefault(); handleLogin(); }} className="bg-zinc-900 p-6 rounded-xl w-80" >
         <h1 className="text-xl mb-4">Login</h1>
 
         <input
+          value={email}
           className="w-full p-2 mb-3 bg-zinc-800 rounded"
           placeholder="Email"
           onChange={(e) => setEmail(e.target.value)}
         />
-
+        
         <input
+          value={password}
           type="password"
           className="w-full p-2 mb-3 bg-zinc-800 rounded"
           placeholder="Password"
@@ -72,7 +94,7 @@ export default function Login() {
         </div>
         
         <button
-          onClick={handleLogin}
+          type="submit"
           disabled={loading || !isSupabaseConfigured}
           className="w-full rounded bg-indigo-600 p-2 disabled:cursor-not-allowed disabled:opacity-70"
         >
@@ -91,7 +113,7 @@ export default function Login() {
             Create an account
           </Link>
         </p>
-      </div>
+    </form>
     </div>
   );
 }

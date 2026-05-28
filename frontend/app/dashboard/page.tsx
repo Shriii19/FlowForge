@@ -80,9 +80,16 @@ export default function Dashboard() {
         if (!session) { setTeamLoading(false); return; }
         const { data, error } = await supabase
           .from("profiles")
-          .select("name, email")
+          .select("full_name, email")
           .limit(10);
-        if (!error && data) setTeam(data);
+        if (!error && data) {
+          setTeam(
+          data.map((member) => ({
+            name: member.full_name || "User",
+            email: member.email,
+          }))
+        );
+      }
       } catch (err) {
         console.error("Failed to fetch team members:", err);
       } finally {
