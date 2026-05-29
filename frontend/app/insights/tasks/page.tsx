@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import TasksHeader from "@/app/components/Tasks-comp/TasksHeader";
-import TasksSidebar from "@/app/components/Tasks-comp/TasksSideBar";
 import TaskPulseBar, { type TaskPulseStage } from "@/app/components/Tasks-comp/TasksPulsebar";
 import TaskFlow, { type TaskFlowNode } from "@/app/components/Tasks-comp/TasksFlow";
 import TaskHistoryTable, { type TaskHistoryRow } from "@/app/components/Tasks-comp/TaskHistoryTable";
@@ -84,7 +82,6 @@ export default function InsightsTasksPage() {
 
   return (
     <>
-      <TasksHeader />
 
       <div className="flex-1 overflow-y-auto w-full custom-scrollbar">
         <div className="px-4 md:px-margin-desktop pb-12 pt-6 pb-20 md:pb-8">

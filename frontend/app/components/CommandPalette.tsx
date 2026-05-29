@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 const commands = [
   { id: 1, label: "Dashboard", href: "/dashboard" },
   { id: 2, label: "Projects", href: "/projects" },
-  { id: 3, label: "Insights Analytics", href: "/insights/analytics" },
+  { id: 3, label: "Insights Overview", href: "/insights/overview" },
   { id: 4, label: "Insights Tasks", href: "/insights/tasks" },
   { id: 5, label: "Insights Feed", href: "/insights/feed" },
 ];
