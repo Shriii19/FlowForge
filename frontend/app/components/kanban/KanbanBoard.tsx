@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { supabase } from "../../lib/supabase";
 
 import {
   DndContext,
@@ -56,11 +57,17 @@ export function KanbanBoard() {
   );
 
   try {
+    const session = await supabase?.auth.getSession();
+
+    const token = session?.data.session?.access_token;
     await fetch(
       `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/tasks/${task.id}/edit`,
       {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
           title: newTitle,
           description: newDescription,
@@ -241,6 +248,9 @@ export function KanbanBoard() {
   setTasks(updatedTasks);
 
   try {
+    const session = await supabase?.auth.getSession();
+
+    const token = session?.data.session?.access_token;
     // Send updates for all affected tasks
     await Promise.all(
       reorderedTasks.map((task) =>
@@ -250,6 +260,7 @@ export function KanbanBoard() {
             method: "PATCH",
             headers: {
               "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify({
               status: task.status,
@@ -286,10 +297,14 @@ export function KanbanBoard() {
     };
 
     try {
+      const session = await supabase?.auth.getSession();
+
+      const token = session?.data.session?.access_token;
       await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/tasks`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(newTask),
       });
@@ -303,8 +318,14 @@ export function KanbanBoard() {
     if (!confirm("Are you sure you want to delete this task?")) return;
 
     try {
+      const session = await supabase?.auth.getSession();
+
+      const token = session?.data.session?.access_token;
       await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/tasks/${taskId}`, {
         method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
     } catch (error) {
       console.error("Failed to delete task", error);

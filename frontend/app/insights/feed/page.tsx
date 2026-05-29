@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import FeedHeader, { type FeedFilter } from "@/app/components/Feed-comp/FeedHeader";
 import FeedList, { type FeedActivityItem } from "@/app/components/Feed-comp/FeedList";
 import FeedMobileNav from "@/app/components/Feed-comp/FeedMobileNav";
+import { supabase } from "@/app/lib/supabase";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -94,9 +95,15 @@ export default function InsightsFeedPage() {
     if (!body?.trim()) return;
 
     try {
+      const session = await supabase?.auth.getSession();
+
+      const token = session?.data.session?.access_token;
       const response = await fetch(`${API_URL}/api/feed`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ title: title.trim(), body: body.trim(), type: "discussion" }),
       });
       if (!response.ok) throw new Error("Failed to create insight");

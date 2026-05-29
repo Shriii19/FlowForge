@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, type ChangeEvent } from "react";
 import { io, Socket } from "socket.io-client";
 import EmojiPicker, { type EmojiClickData } from "emoji-picker-react";
 import { Smile, Paperclip, Mic, Square } from "lucide-react";
+import { supabase } from "../lib/supabase";
 
 type Message = {
   id?: string;
@@ -200,35 +201,38 @@ socket.on("newMessage", (msg) => {
 
   // SEND
   async function handleSend() {
-  if ((!input.trim() && !selectedImage && !audioBlob) || !username.trim()) return;
+    if ((!input.trim() && !selectedImage && !audioBlob) || !username.trim()) return;
 
+    const currentImage = selectedImage;
+    const currentAudio = audioBlob;
 
-  const currentImage = selectedImage;
-  const currentAudio = audioBlob;
-  // send text to backend
-  await fetch("http://localhost:5000/api/chat", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      text: input,
-      username,
-      image: currentImage,
-      audio: currentAudio,
-    }),
-  });
+    const session = await supabase?.auth.getSession();
 
-  // clear inputs
-  setInput("");
-  setSelectedImage(null);
-  setAudioBlob(null);
-  setReplyingTo(null);
-  // auto scroll
-  bottomRef.current?.scrollIntoView({
-    behavior: "smooth",
-  });
-}
+    const token = session?.data.session?.access_token;
+
+    await fetch("http://localhost:5000/api/chat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        text: input,
+        username,
+        image: currentImage,
+        audio: currentAudio,
+      }),
+    });
+
+    setInput("");
+    setSelectedImage(null);
+    setAudioBlob(null);
+    setReplyingTo(null);
+
+    bottomRef.current?.scrollIntoView({
+      behavior: "smooth",
+    });
+  }
 
 
 
