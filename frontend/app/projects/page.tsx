@@ -6,6 +6,7 @@ import { isSupabaseConfigured, supabase } from "@/app/lib/supabase";
 import { useState, useEffect } from "react";
 import ProjectDialog from "@/app/components/ProjectDialog";
 
+
 type Project = {
   id: string;
   name: string;

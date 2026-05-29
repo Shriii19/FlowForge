@@ -1,43 +1,44 @@
 "use client";
-import CommandPalette from "./CommandPalette";
-import NotificationsPanel from "./NotificationsPanel";
 
 import { usePathname } from "next/navigation";
-import Sidebar from "./Sidebar";
 
-export default function AppShell({ children }: { children: React.ReactNode }) {
+import CommandPalette from "./CommandPalette";
+import Sidebar from "./Sidebar";
+import TopNavbar from "./TopNavbar";
+
+export default function AppShell({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
 
   const isPublicRoute =
-    pathname === "/" || pathname === "/login" || pathname === "/signup";
-  const isInsightsRoute = pathname?.startsWith("/insights");
+    pathname === "/" ||
+    pathname === "/login" ||
+    pathname === "/signup";
 
-  const hideSidebar = isPublicRoute || isInsightsRoute;
+  const isInsightsRoute =
+    pathname?.startsWith("/insights");
 
-  // Let Insights pages control their own padding
+  const hideSidebar =
+    isPublicRoute || isInsightsRoute;
+
+  // Insights pages manage their own spacing
   const mainClass = hideSidebar
     ? "min-w-0 flex-1 overflow-x-hidden"
     : "min-w-0 flex-1 overflow-x-hidden p-6";
 
   return (
-    <div className="flex min-h-screen relative w-full">
+    <div className="flex min-h-screen w-full bg-[#f5f7f2]">
       <CommandPalette />
 
       {!hideSidebar && <Sidebar />}
 
-      <div className="flex-1 flex flex-col">
+      <div className="flex min-w-0 flex-1 flex-col">
         {!isPublicRoute && (
-          <div
-            className="
-              sticky top-0 z-40
-              flex items-center justify-end
-              border-b border-outline-variant
-              bg-white/80
-              px-6 py-4
-              backdrop-blur-xl
-            "
-          >
-            <NotificationsPanel />
+          <div className="sticky top-0 z-40">
+            <TopNavbar />
           </div>
         )}
 

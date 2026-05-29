@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import AnalyticsSidebar from "@/app/components/analytics-comp/AnalyticsSideBar";
-import AnalyticsHeader from "@/app/components/analytics-comp/AnalyticsHeader";
 import PerformanceSummary, {
   type AnalyticsMetric,
   type MemberPerformance,
@@ -111,19 +109,35 @@ export default function InsightsAnalyticsPage() {
   }, [members, query]);
 
   return (
-    <>
-      <AnalyticsHeader
-        sprint={sprint}
-        sprints={Object.keys(data)}
-        query={query}
-        onQueryChange={setQuery}
-        onSprintChange={(nextSprint) => {
-          setSprint(nextSprint);
-          setSelectedMemberId(data[nextSprint][0]?.id || "");
-        }}
-      />
+  <>
+    <div className="border-b border-outline-variant bg-white px-6 py-4">
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <select
+          value={sprint}
+          onChange={(event) => {
+            const nextSprint = event.target.value;
+            setSprint(nextSprint);
+            setSelectedMemberId(data[nextSprint][0]?.id || "");
+          }}
+          className="rounded-lg border border-outline-variant px-3 py-2"
+        >
+          {Object.keys(data).map((item) => (
+            <option key={item} value={item}>
+              {item}
+            </option>
+          ))}
+        </select>
 
-      <div className="flex-1 overflow-y-auto w-full custom-scrollbar">
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search member, role, or focus..."
+          className="flex-1 rounded-lg border border-outline-variant px-4 py-2"
+        />
+      </div>
+    </div>
+
+    <div className="flex-1 overflow-y-auto w-full custom-scrollbar">
         <div className="p-6 md:p-margin-desktop max-w-container-max mx-auto w-full flex flex-col gap-gutter pb-20 md:pb-8">
           {(isLoading || loadError) && (
             <div className="rounded-lg bg-surface-container-low px-4 py-3 text-sm text-on-surface-variant">

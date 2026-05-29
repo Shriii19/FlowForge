@@ -57,7 +57,7 @@ export default function OverviewMain() {
 
   return (
     <div className="flex-1">
-      <div className="max-w-4xl mx-auto mb-16">
+      <div className="w-full mb-16">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-8 mb-12">
           <div>
             <div className="inline-flex items-center gap-3 bg-secondary-container30 px-3 py-1 rounded-full mb-6">

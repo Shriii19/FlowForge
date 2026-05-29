@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import FeedSidebar from "@/app/components/Feed-comp/FeedSidebar";
 import FeedHeader, { type FeedFilter } from "@/app/components/Feed-comp/FeedHeader";
 import FeedList, { type FeedActivityItem } from "@/app/components/Feed-comp/FeedList";
 import FeedMobileNav from "@/app/components/Feed-comp/FeedMobileNav";
