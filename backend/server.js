@@ -20,7 +20,9 @@ const io = new Server(server, {
 
 app.set("io", io);
 
-const onlineUsers = new Map(); // socket.id -> username
+const DEFAULT_ROOM = "global-room";
+
+const onlineUsers = new Map();
 
 // store reactions in memory
 const reactionsStore = {};
@@ -42,54 +44,92 @@ app.use("/api/insights", insightsRoutes);
 io.on("connection", (socket) => {
   console.log("⚡ User connected:", socket.id);
 
-  // JOIN
-  socket.on("join", (username) => {
-    onlineUsers.set(socket.id, username);
-    io.emit("onlineUsers", Array.from(onlineUsers.values()));
+  // JOIN ROOM
+  socket.on("join", ({ username, room }) => {
+    const activeRoom = room || DEFAULT_ROOM;
+
+    socket.join(activeRoom);
+
+    onlineUsers.set(socket.id, {
+      username,
+      room: activeRoom,
+    });
+
+    const roomUsers = Array.from(onlineUsers.values())
+      .filter((user) => user.room === activeRoom)
+      .map((user) => user.username);
+
+    io.to(activeRoom).emit("onlineUsers", roomUsers);
   });
 
-  // typing
+  // REACTIONS
   socket.on("react", ({ messageId, emoji, username }) => {
-  if (!reactionsStore[messageId]) {
-    reactionsStore[messageId] = {};
-  }
+    if (!reactionsStore[messageId]) {
+      reactionsStore[messageId] = {};
+    }
 
-  if (!reactionsStore[messageId][emoji]) {
-    reactionsStore[messageId][emoji] = new Set();
-  }
+    if (!reactionsStore[messageId][emoji]) {
+      reactionsStore[messageId][emoji] = new Set();
+    }
 
-  const users = reactionsStore[messageId][emoji];
+    const users = reactionsStore[messageId][emoji];
 
-  //  toggle
-  if (users.has(username)) {
-    users.delete(username); 
-  } else {
-    users.add(username); 
-  }
+    // toggle reaction
+    if (users.has(username)) {
+      users.delete(username);
+    } else {
+      users.add(username);
+    }
 
-  // convert Set ->count
-  const formatted = {};
-  for (const emo in reactionsStore[messageId]) {
-    formatted[emo] = reactionsStore[messageId][emo].size;
-  }
+    // convert Set -> count
+    const formatted = {};
 
-  io.emit("reactionUpdate", {
-    messageId,
-    reactions: formatted,
+    for (const emo in reactionsStore[messageId]) {
+      formatted[emo] = reactionsStore[messageId][emo].size;
+    }
+
+    const userData = onlineUsers.get(socket.id);
+
+    if (userData?.room) {
+      io.to(userData.room).emit("reactionUpdate", {
+        messageId,
+        reactions: formatted,
+      });
+    }
   });
-});
-socket.on("task-moved", (task) => {
+
+  // TASK MOVEMENT
+  socket.on("task-moved", ({ room, task }) => {
+    if (!room) return;
+
     console.log("Task moved:", task);
-    io.emit("task-moved", task);
-  });
-  // seen
-  socket.on("seen", (messageId) => {
-    io.emit("messageSeen", messageId);
+
+    io.to(room).emit("task-moved", task);
   });
 
+  // MESSAGE SEEN
+  socket.on("seen", ({ messageId, room }) => {
+    const userData = onlineUsers.get(socket.id);
+
+    if (room) {
+      io.to(room).emit("messageSeen", messageId);
+    }
+  });
+
+  // DISCONNECT
   socket.on("disconnect", () => {
+    const disconnectedUser = onlineUsers.get(socket.id);
+
     onlineUsers.delete(socket.id);
-    io.emit("onlineUsers", Array.from(onlineUsers.values()));
+
+    if (disconnectedUser?.room) {
+      const roomUsers = Array.from(onlineUsers.values())
+        .filter((user) => user.room === disconnectedUser.room)
+        .map((user) => user.username);
+
+      io.to(disconnectedUser.room).emit("onlineUsers", roomUsers);
+    }
+
     console.log("User disconnected:", socket.id);
   });
 });
