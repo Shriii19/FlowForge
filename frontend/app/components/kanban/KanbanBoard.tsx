@@ -89,6 +89,10 @@ export function KanbanBoard() {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
     const newSocket = io(apiUrl);
     socketRef.current = newSocket;
+    newSocket.emit("join", {
+      username: "kanban-user",
+      room: "project-alpha",
+    });
 
     const loadTimer = window.setTimeout(() => {
       void fetchTasks();
@@ -263,7 +267,10 @@ export function KanbanBoard() {
     // Emit socket updates
     if (socketRef.current) {
       reorderedTasks.forEach((task) => {
-        socketRef.current?.emit("task-moved", task);
+        socketRef.current?.emit("task-moved", {
+          room: "project-alpha",
+          task,
+        });
       });
     }
   } catch (error) {
