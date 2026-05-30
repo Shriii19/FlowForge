@@ -163,7 +163,10 @@ socket.on("newMessage", (msg) => {
   //  JOIN USER
   useEffect(() => {
     if (socketRef.current && username.trim()) {
-      socketRef.current.emit("join", username);
+      socketRef.current.emit("join", {
+        username,
+        room: "project-alpha",
+      });
     }
   }, [username]);
 
@@ -195,7 +198,10 @@ socket.on("newMessage", (msg) => {
 
     const lastMsg = messages[messages.length - 1];
     if (lastMsg?.id) {
-      socketRef.current.emit("seen", lastMsg.id);
+      socketRef.current.emit("seen", {
+        messageId: lastMsg.id,
+        room: "project-alpha",
+      });
     }
   }, [messages]);
 
@@ -324,7 +330,12 @@ function stopRecording() {
     if (!messageId) return;
 
     // send reaction to server
-    socketRef.current?.emit("react", { messageId, emoji, username,});
+    socketRef.current?.emit("react", {
+      messageId,
+      emoji,
+      username,
+      room: "project-alpha",
+    });
   }
   function handleReply(msg: Message) {
     setReplyingTo(msg);

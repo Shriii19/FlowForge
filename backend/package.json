@@ -12,10 +12,13 @@
     "cors": "^2.8.6",
     "dotenv": "^16.6.1",
     "express": "^4.22.2",
+    "express-rate-limit": "^8.5.2",
     "next": "latest",
     "react": "latest",
     "react-dom": "latest",
-    "socket.io": "^4.7.2"
+    "socket.io": "^4.7.2",
+    "validator": "^13.15.35",
+    "xss": "^1.0.15"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
