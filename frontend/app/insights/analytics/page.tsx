@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/app/lib/supabase";
 import PerformanceSummary, {
   type AnalyticsMetric,
   type MemberPerformance,
@@ -55,8 +56,14 @@ export default function InsightsAnalyticsPage() {
       setIsLoading(true);
       setLoadError("");
       try {
+        const session = await supabase?.auth.getSession();
+
+        const token = session?.data.session?.access_token;
         const response = await fetch(`${API_URL}/api/analytics`, {
           signal: controller.signal,
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         });
         if (!response.ok) throw new Error("Failed to load analytics");
         const body = (await response.json()) as AnalyticsResponse;

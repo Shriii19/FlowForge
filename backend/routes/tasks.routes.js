@@ -7,12 +7,20 @@ import {
   deleteTask,
 } from "../controllers/tasks.controller.js";
 
+import { authenticateUser } from "../middleware/auth.middleware.js";
 import { validateTask } from "../middleware/validation.middleware.js";
 
 const router = express.Router();
 
 router.get("/", getTasks);
 
+router.post("/", authenticateUser, createTask);
+
+router.patch("/:id", authenticateUser, updateTaskStatus);
+
+router.patch("/:id/edit", authenticateUser, updateTask);
+
+router.delete("/:id", authenticateUser, deleteTask);
 router.post("/", validateTask, createTask);
 
 router.patch("/:id", validateTask, updateTaskStatus);
