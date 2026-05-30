@@ -47,6 +47,23 @@ export const updateTaskStatus = async (req, res) => {
     const { id } = req.params;
     const { status, position } = req.body;
 
+    const validStatuses = ["todo", "in_progress", "done"];
+
+    if (!status || !validStatuses.includes(status)) {
+      return res.status(400).json({
+        error: "Invalid task status",
+      });
+    }
+
+    if (
+      position !== undefined &&
+      (typeof position !== "number" || position < 0)
+    ) {
+      return res.status(400).json({
+        error: "Invalid task position",
+      });
+    }
+
     const { data, error } = await supabase
       .from("tasks")
       .update({ status, position })
@@ -55,13 +72,20 @@ export const updateTaskStatus = async (req, res) => {
 
     if (error) throw error;
 
+    if (!data || data.length === 0) {
+      return res.status(404).json({
+        error: "Task not found",
+      });
+    }
+
     res.status(200).json(data[0]);
   } catch (error) {
     console.error("Error updating task status:", error);
-    res.status(500).json({ error: "Failed to update task status" });
+    res.status(500).json({
+      error: "Failed to update task status",
+    });
   }
 };
-
 export const updateTask = async (req, res) => {
   try {
     const { id } = req.params;
