@@ -16,7 +16,9 @@
     "next": "latest",
     "react": "latest",
     "react-dom": "latest",
-    "socket.io": "^4.7.2"
+    "socket.io": "^4.7.2",
+    "validator": "^13.15.35",
+    "xss": "^1.0.15"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
