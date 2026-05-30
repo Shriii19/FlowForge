@@ -8,6 +8,7 @@ import taskRoutes from "./routes/tasks.routes.js";
 import analyticsRoutes from "./routes/analytics.routes.js";
 import feedRoutes from "./routes/feed.routes.js";
 import insightsRoutes from "./routes/insights.routes.js";
+import { apiLimiter } from "./middleware/rateLimiter.js";
 
 dotenv.config();
 
@@ -28,6 +29,7 @@ const onlineUsers = new Map();
 const reactionsStore = {};
 
 app.use(cors());
+app.use(apiLimiter);
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
