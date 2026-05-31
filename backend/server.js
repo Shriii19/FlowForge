@@ -25,7 +25,12 @@ const DEFAULT_ROOM = "global-room";
 
 const onlineUsers = new Map();
 
-// store reactions in memory
+// In-memory reactions store, capped to prevent unbounded memory growth.
+// Each unique messageId creates a new entry with no eviction. A user who
+// sends many messages or reacts to many unique IDs would grow this object
+// indefinitely, eventually exhausting process heap. Capping at 1000 entries
+// and evicting the oldest key on overflow keeps memory bounded.
+const MAX_REACTION_ENTRIES = 1000;
 const reactionsStore = {};
 
 app.use(cors());
@@ -66,6 +71,13 @@ io.on("connection", (socket) => {
 
   // REACTIONS
   socket.on("react", ({ messageId, emoji, username }) => {
+    // Evict the oldest tracked message when the cap is reached and this
+    // messageId has not been seen before, keeping the store bounded.
+    if (!reactionsStore[messageId] && Object.keys(reactionsStore).length >= MAX_REACTION_ENTRIES) {
+      const oldestKey = Object.keys(reactionsStore)[0];
+      delete reactionsStore[oldestKey];
+    }
+
     if (!reactionsStore[messageId]) {
       reactionsStore[messageId] = {};
     }
