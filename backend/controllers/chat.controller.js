@@ -6,7 +6,10 @@ export const getMessages = async (req, res) => {
     .select("*")
     .order("created_at", { ascending: true });
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    console.error("Supabase error in getMessages:", error);
+    return res.status(500).json({ error: "Failed to retrieve messages." });
+  }
 
   res.json(data);
 };
@@ -32,8 +35,8 @@ export const sendMessage = async (req, res) => {
       .select();
 
     if (error) {
-      console.error("Supabase error:", error);
-      return res.status(500).json({ error: error.message });
+      console.error("Supabase error in sendMessage:", error);
+      return res.status(500).json({ error: "Failed to send message." });
     }
     const io = req.app.get("io");
 
