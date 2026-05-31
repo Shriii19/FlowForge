@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/app/lib/supabase";
+import AnalyticsHeader from "@/app/components/analytics-comp/AnalyticsHeader";
 import PerformanceSummary, {
   type AnalyticsMetric,
   type MemberPerformance,
@@ -41,7 +42,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 export default function InsightsAnalyticsPage() {
   const [data, setData] = useState(sprintData);
-  const [sprint, setSprint] = useState("Sprint 42");
+  const [sprintA, setSprintA] = useState("Sprint 42");
+  const [sprintB, setSprintB] = useState("Sprint 41");
   const [metric, setMetric] = useState<AnalyticsMetric>("completed");
   const [selectedMemberId, setSelectedMemberId] = useState("casey");
   const [query, setQuery] = useState("");
@@ -78,7 +80,7 @@ export default function InsightsAnalyticsPage() {
         if (Object.keys(nextData).length > 0) {
           setData(nextData);
           const firstSprint = Object.keys(nextData)[0];
-          setSprint((current) => (nextData[current] ? current : firstSprint));
+          setSprintA((current) => nextData[current] ? current : firstSprint );
           setSelectedMemberId((current) => {
             const activeMembers = nextData[firstSprint] || [];
             return activeMembers.some((member) => member.id === current)
@@ -100,9 +102,35 @@ export default function InsightsAnalyticsPage() {
   }, []);
 
   const members = useMemo(
-    () => data[sprint] || Object.values(data)[0] || [],
-    [data, sprint]
+    () => data[sprintA] || Object.values(data)[0] || [],
+    [data, sprintA]
   );
+  const compareMembers = useMemo(
+  () => data[sprintB] || [],
+  [data, sprintB]
+);
+
+const sprintAMetrics = {
+  completed: members.reduce(
+    (sum, member) => sum + member.completed,
+    0
+  ),
+  reviews: members.reduce(
+    (sum, member) => sum + member.reviews,
+    0
+  ),
+};
+
+const sprintBMetrics = {
+  completed: compareMembers.reduce(
+    (sum, member) => sum + member.completed,
+    0
+  ),
+  reviews: compareMembers.reduce(
+    (sum, member) => sum + member.reviews,
+    0
+  ),
+};
   const selectedMember = members.find((member) => member.id === selectedMemberId) ?? members[0];
 
   const filteredMembers = useMemo(() => {
@@ -117,32 +145,20 @@ export default function InsightsAnalyticsPage() {
 
   return (
   <>
-    <div className="border-b border-outline-variant bg-white px-6 py-4">
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <select
-          value={sprint}
-          onChange={(event) => {
-            const nextSprint = event.target.value;
-            setSprint(nextSprint);
-            setSelectedMemberId(data[nextSprint][0]?.id || "");
-          }}
-          className="rounded-lg border border-outline-variant px-3 py-2"
-        >
-          {Object.keys(data).map((item) => (
-            <option key={item} value={item}>
-              {item}
-            </option>
-          ))}
-        </select>
-
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search member, role, or focus..."
-          className="flex-1 rounded-lg border border-outline-variant px-4 py-2"
-        />
-      </div>
-    </div>
+    <AnalyticsHeader
+      sprintA={sprintA}
+      sprintB={sprintB}
+      sprints={Object.keys(data)}
+      query={query}
+      onQueryChange={setQuery}
+      onSprintAChange={(nextSprint) => {
+        setSprintA(nextSprint);
+        setSelectedMemberId(data[nextSprint][0]?.id || "");
+      }}
+      onSprintBChange={(nextSprint) => {
+        setSprintB(nextSprint);
+      }}
+    />
 
     <div className="flex-1 overflow-y-auto w-full custom-scrollbar">
         <div className="p-6 md:p-margin-desktop max-w-container-max mx-auto w-full flex flex-col gap-gutter pb-20 md:pb-8">
@@ -151,6 +167,59 @@ export default function InsightsAnalyticsPage() {
               {isLoading ? "Refreshing analytics from backend..." : loadError}
             </div>
           )}
+          <div className="rounded-2xl border border-outline-variant bg-white p-6">
+  <h3 className="text-lg font-semibold">
+    Sprint Comparison
+  </h3>
+
+  <div className="mt-4 grid gap-4 md:grid-cols-2">
+    <div className="rounded-xl border p-4">
+      <p className="text-sm text-gray-500">
+        Completed Tasks
+      </p>
+
+      <p className="mt-2 text-2xl font-bold">
+        {sprintAMetrics.completed} vs {sprintBMetrics.completed}
+      </p>
+
+      <p
+        className={`mt-1 text-sm ${
+          sprintAMetrics.completed >= sprintBMetrics.completed
+            ? "text-green-600"
+            : "text-red-600"
+        }`}
+      >
+        {sprintAMetrics.completed - sprintBMetrics.completed >= 0
+          ? "+"
+          : ""}
+        {sprintAMetrics.completed - sprintBMetrics.completed}
+      </p>
+    </div>
+
+    <div className="rounded-xl border p-4">
+      <p className="text-sm text-gray-500">
+        Reviews
+      </p>
+
+      <p className="mt-2 text-2xl font-bold">
+        {sprintAMetrics.reviews} vs {sprintBMetrics.reviews}
+      </p>
+
+      <p
+        className={`mt-1 text-sm ${
+          sprintAMetrics.reviews >= sprintBMetrics.reviews
+            ? "text-green-600"
+            : "text-red-600"
+        }`}
+      >
+        {sprintAMetrics.reviews - sprintBMetrics.reviews >= 0
+          ? "+"
+          : ""}
+        {sprintAMetrics.reviews - sprintBMetrics.reviews}
+      </p>
+    </div>
+  </div>
+</div>
           <PerformanceSummary
             members={members}
             metric={metric}
@@ -162,7 +231,7 @@ export default function InsightsAnalyticsPage() {
             onSelectMember={setSelectedMemberId}
           />
           <SprintLeaderboard
-            sprint={sprint}
+            sprint={sprintA}
             members={filteredMembers}
             sortKey={sortKey}
             onSortChange={setSortKey}
