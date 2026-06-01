@@ -131,6 +131,42 @@ const sprintBMetrics = {
     0
   ),
 };
+const completedDifference =
+  sprintAMetrics.completed -
+  sprintBMetrics.completed;
+
+const reviewsDifference =
+  sprintAMetrics.reviews -
+  sprintBMetrics.reviews;
+
+const completedPercentage =
+  sprintBMetrics.completed === 0
+    ? 0
+    : (completedDifference /
+        sprintBMetrics.completed) *
+      100;
+
+const reviewsPercentage =
+  sprintBMetrics.reviews === 0
+    ? 0
+    : (reviewsDifference /
+        sprintBMetrics.reviews) *
+      100;
+const completedTrend =
+  completedDifference > 0
+    ? "▲"
+    : completedDifference < 0
+    ? "▼"
+    : "●";
+
+const reviewsTrend =
+  reviewsDifference > 0
+    ? "▲"
+    : reviewsDifference < 0
+    ? "▼"
+    : "●";
+
+
   const selectedMember = members.find((member) => member.id === selectedMemberId) ?? members[0];
 
   const filteredMembers = useMemo(() => {
@@ -183,17 +219,20 @@ const sprintBMetrics = {
       </p>
 
       <p
-        className={`mt-1 text-sm ${
-          sprintAMetrics.completed >= sprintBMetrics.completed
-            ? "text-green-600"
-            : "text-red-600"
-        }`}
-      >
-        {sprintAMetrics.completed - sprintBMetrics.completed >= 0
-          ? "+"
-          : ""}
-        {sprintAMetrics.completed - sprintBMetrics.completed}
-      </p>
+  className={`mt-1 text-sm ${
+    completedDifference >= 0
+      ? "text-green-600"
+      : "text-red-600"
+  }`}
+>
+{completedTrend}{" "}
+{completedDifference >= 0 ? "+" : ""}
+{completedDifference}
+{" ("}
+{completedPercentage >= 0 ? "+" : ""}
+{completedPercentage.toFixed(1)}%
+{")"}
+</p>
     </div>
 
     <div className="rounded-xl border p-4">
@@ -206,17 +245,20 @@ const sprintBMetrics = {
       </p>
 
       <p
-        className={`mt-1 text-sm ${
-          sprintAMetrics.reviews >= sprintBMetrics.reviews
-            ? "text-green-600"
-            : "text-red-600"
-        }`}
-      >
-        {sprintAMetrics.reviews - sprintBMetrics.reviews >= 0
-          ? "+"
-          : ""}
-        {sprintAMetrics.reviews - sprintBMetrics.reviews}
-      </p>
+  className={`mt-1 text-sm ${
+    reviewsDifference >= 0
+      ? "text-green-600"
+      : "text-red-600"
+  }`}
+>
+  {reviewsTrend}{" "}
+  {reviewsDifference >= 0 ? "+" : ""}
+  {reviewsDifference}
+  {" ("}
+  {reviewsPercentage >= 0 ? "+" : ""}
+  {reviewsPercentage.toFixed(1)}%
+  {")"}
+</p>
     </div>
   </div>
 </div>
