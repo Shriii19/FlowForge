@@ -30,8 +30,12 @@ const reactionsStore = {};
 
 app.use(cors());
 app.use(apiLimiter);
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ limit: "50mb", extended: true }));
+// Tight body-size limit. Legitimate payloads for this API (task objects,
+// chat messages) are a few kilobytes at most. 50 mb allowed a single
+// request to force the server to allocate and parse 50 MB of JSON before
+// any route handler ran, enabling memory exhaustion with very few requests.
+app.use(express.json({ limit: "512kb" }));
+app.use(express.urlencoded({ limit: "512kb", extended: true }));
 
 app.get("/", (req, res) => {
   res.send("FlowForge Backend Running 🚀");
