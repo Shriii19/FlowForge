@@ -15,8 +15,18 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 
+// Restrict Socket.IO to the known frontend origin.
+// origin: "*" allows any website to open a WebSocket connection, which
+// lets third-party pages subscribe to real-time events or inject messages
+// by abusing a visitor's active session. Reading the origin from the
+// environment keeps the value configurable across deployments.
+const ALLOWED_ORIGIN = process.env.FRONTEND_URL || "http://localhost:5173";
+
 const io = new Server(server, {
-  cors: { origin: "*" },
+  cors: {
+    origin: ALLOWED_ORIGIN,
+    methods: ["GET", "POST"],
+  },
 });
 
 app.set("io", io);
