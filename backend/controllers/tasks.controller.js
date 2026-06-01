@@ -20,7 +20,26 @@ export const getTasks = async (req, res) => {
 export const createTask = async (req, res) => {
   try {
     const { title, description, status, position } = req.body;
-    
+
+    // Validate required fields and enforce length limits before any database
+    // operation. Without these checks an authenticated user could insert empty
+    // titles, megabyte-length descriptions, or strings containing control
+    // characters, corrupting data visible to all team members.
+    if (!title || typeof title !== "string" || title.trim().length === 0) {
+      return res.status(400).json({ error: "Task title is required." });
+    }
+    if (title.length > 200) {
+      return res.status(400).json({ error: "Task title must not exceed 200 characters." });
+    }
+    if (description !== undefined && description !== null) {
+      if (typeof description !== "string") {
+        return res.status(400).json({ error: "Task description must be a string." });
+      }
+      if (description.length > 5000) {
+        return res.status(400).json({ error: "Task description must not exceed 5000 characters." });
+      }
+    }
+
     const { data, error } = await supabase
       .from("tasks")
       .insert([{ title, description, status, position }])
