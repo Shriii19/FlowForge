@@ -92,8 +92,28 @@ export const updateTask = async (req, res) => {
     const { title, description, status } = req.body;
     const updateFields = {};
 
-    if (title !== undefined) updateFields.title = title;
-    if (description !== undefined) updateFields.description = description;
+    // Apply the same length limits as createTask so an authenticated user
+    // cannot bypass creation-time validation by patching an existing task.
+    if (title !== undefined) {
+      if (typeof title !== "string" || title.trim().length === 0) {
+        return res.status(400).json({ error: "Task title is required." });
+      }
+      if (title.length > 200) {
+        return res.status(400).json({ error: "Task title must not exceed 200 characters." });
+      }
+      updateFields.title = title;
+    }
+    if (description !== undefined) {
+      if (description !== null) {
+        if (typeof description !== "string") {
+          return res.status(400).json({ error: "Task description must be a string." });
+        }
+        if (description.length > 5000) {
+          return res.status(400).json({ error: "Task description must not exceed 5000 characters." });
+        }
+      }
+      updateFields.description = description;
+    }
 
     // Validate status if provided
     const validStatus = ["todo", "in_progress", "done"];
