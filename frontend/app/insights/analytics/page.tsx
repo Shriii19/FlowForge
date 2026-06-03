@@ -12,6 +12,7 @@ import SprintLeaderboard, {
   type LeaderboardSortKey,
 } from "@/app/components/analytics-comp/SprintLeaderboard";
 import AnalyticsMobileNav from "@/app/components/analytics-comp/AnalyticsMobileNav";
+import TrendMetricCard from "@/app/components/analytics-comp/TrendMetricCard";
 
 const sprintData: Record<string, MemberPerformance[]> = {
   "Sprint 42": [
@@ -131,40 +132,6 @@ const sprintBMetrics = {
     0
   ),
 };
-const completedDifference =
-  sprintAMetrics.completed -
-  sprintBMetrics.completed;
-
-const reviewsDifference =
-  sprintAMetrics.reviews -
-  sprintBMetrics.reviews;
-
-const completedPercentage =
-  sprintBMetrics.completed === 0
-    ? 0
-    : (completedDifference /
-        sprintBMetrics.completed) *
-      100;
-
-const reviewsPercentage =
-  sprintBMetrics.reviews === 0
-    ? 0
-    : (reviewsDifference /
-        sprintBMetrics.reviews) *
-      100;
-const completedTrend =
-  completedDifference > 0
-    ? "▲"
-    : completedDifference < 0
-    ? "▼"
-    : "●";
-
-const reviewsTrend =
-  reviewsDifference > 0
-    ? "▲"
-    : reviewsDifference < 0
-    ? "▼"
-    : "●";
 
 
   const selectedMember = members.find((member) => member.id === selectedMemberId) ?? members[0];
@@ -209,57 +176,19 @@ const reviewsTrend =
   </h3>
 
   <div className="mt-4 grid gap-4 md:grid-cols-2">
-    <div className="rounded-xl border p-4">
-      <p className="text-sm text-gray-500">
-        Completed Tasks
-      </p>
+    <TrendMetricCard
+  label="Completed Tasks"
+  current={sprintAMetrics.completed}
+  previous={sprintBMetrics.completed}
+/>
 
-      <p className="mt-2 text-2xl font-bold">
-        {sprintAMetrics.completed} vs {sprintBMetrics.completed}
-      </p>
+<TrendMetricCard
+  label="Reviews"
+  current={sprintAMetrics.reviews}
+  previous={sprintBMetrics.reviews}
+/>
 
-      <p
-  className={`mt-1 text-sm ${
-    completedDifference >= 0
-      ? "text-green-600"
-      : "text-red-600"
-  }`}
->
-{completedTrend}{" "}
-{completedDifference >= 0 ? "+" : ""}
-{completedDifference}
-{" ("}
-{completedPercentage >= 0 ? "+" : ""}
-{completedPercentage.toFixed(1)}%
-{")"}
-</p>
-    </div>
-
-    <div className="rounded-xl border p-4">
-      <p className="text-sm text-gray-500">
-        Reviews
-      </p>
-
-      <p className="mt-2 text-2xl font-bold">
-        {sprintAMetrics.reviews} vs {sprintBMetrics.reviews}
-      </p>
-
-      <p
-  className={`mt-1 text-sm ${
-    reviewsDifference >= 0
-      ? "text-green-600"
-      : "text-red-600"
-  }`}
->
-  {reviewsTrend}{" "}
-  {reviewsDifference >= 0 ? "+" : ""}
-  {reviewsDifference}
-  {" ("}
-  {reviewsPercentage >= 0 ? "+" : ""}
-  {reviewsPercentage.toFixed(1)}%
-  {")"}
-</p>
-    </div>
+    
   </div>
 </div>
           <PerformanceSummary
