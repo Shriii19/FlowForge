@@ -46,6 +46,7 @@ export function KanbanBoard() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const socketRef = useRef<ReturnType<typeof io> | null>(null);
+  const isSyncingRef = useRef(false);
 
   const handleEditTask = async (task: Task) => {
   const newTitle = window.prompt("Edit title:", task.title);
@@ -105,7 +106,8 @@ export function KanbanBoard() {
       void fetchTasks();
     }, 0);
 
-    newSocket.on("task-moved", (movedTask: Task) => {
+      newSocket.on("task-moved", (movedTask: Task) => {
+        if (isSyncingRef.current) return;
       setTasks((prev) => {
         const existing = prev.find((t) => t.id === movedTask.id);
         let newTasks;
@@ -155,8 +157,9 @@ export function KanbanBoard() {
   };
 
   const handleDragOver = (event: DragOverEvent) => {
-    const { active, over } = event;
-    if (!over) return;
+  const { active, over } = event;
+
+  if (!over) return;
 
     const activeId = active.id;
     const overId = over.id;
@@ -198,21 +201,33 @@ export function KanbanBoard() {
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
-  setActiveTask(null);
+    if (isSyncingRef.current) return;
+
+    isSyncingRef.current = true;
+    setActiveTask(null);
 
   const { active, over } = event;
-  if (!over) return;
+  if (!over) {
+    isSyncingRef.current = false;
+    return;
+  }
 
   const activeId = active.id;
   const overId = over.id;
 
   const activeTask = tasks.find((t) => t.id === activeId);
-  if (!activeTask) return;
+  if (!activeTask) {
+    isSyncingRef.current = false;
+    return;
+  }
 
   let newStatus = activeTask.status;
 
   if (over.data.current?.type === "Column") {
-    if (!isTaskStatus(over.id)) return;
+    if (!isTaskStatus(over.id)) {
+      isSyncingRef.current = false;
+      return;
+    }
     newStatus = over.id;
   } else if (over.data.current?.type === "Task") {
     const overTask = tasks.find((t) => t.id === overId);
@@ -283,10 +298,13 @@ export function KanbanBoard() {
           task,
         });
       });
+
     }
   } catch (error) {
     console.error("Failed to update task positions", error);
+    isSyncingRef.current = false;
   }
+  isSyncingRef.current = false;
 };
 
     
