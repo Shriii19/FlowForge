@@ -41,6 +41,7 @@ export default function InsightsFeedPage() {
   const [items, setItems] = useState<FeedActivityItem[]>(fallbackItems);
   const [filter, setFilter] = useState<FeedFilter>("All");
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [visibleCount, setVisibleCount] = useState(6);
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState("");
@@ -71,8 +72,16 @@ export default function InsightsFeedPage() {
     return () => controller.abort();
   }, []);
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(query);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [query]);
+
   const filteredItems = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
+    const normalizedQuery = debouncedQuery.trim().toLowerCase();
     return items.filter((item) => {
       const matchesFilter =
         filter === "All" ||
@@ -86,7 +95,7 @@ export default function InsightsFeedPage() {
         );
       return matchesFilter && matchesQuery;
     });
-  }, [filter, items, query]);
+  }, [filter, items, debouncedQuery]);
 
   const createInsight = async () => {
     const title = window.prompt("Insight title");
