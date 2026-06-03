@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, type ChangeEvent } from "react";
-import { io, Socket } from "socket.io-client";
+import type { Socket } from "socket.io-client";
+import { getSocket } from "../lib/socket";
 import EmojiPicker, { type EmojiClickData } from "emoji-picker-react";
 import { Smile, Paperclip, Mic, Square } from "lucide-react";
 import { supabase } from "../lib/supabase";
@@ -68,8 +69,8 @@ export default function ChatPage() {
 
   //  SOCKET SETUP
   useEffect(() => {
-    const socket = io("http://localhost:5000");
-    socketRef.current = socket;
+  const socket = getSocket();
+  socketRef.current = socket;
 
     // FETCH MESSAGES
     fetch("http://localhost:5000/api/chat")
@@ -94,6 +95,8 @@ export default function ChatPage() {
       });
 
 // NEW MESSAGE
+socket.off("newMessage");
+
 socket.on("newMessage", (msg) => {
   setMessages((prev) => {
     const alreadyExists = prev.some(
@@ -125,6 +128,8 @@ socket.on("newMessage", (msg) => {
   }
 });
     // TYPING
+    socket.off("typing");
+
     socket.on("typing", (user) => {
       setTypingUser(user);
 
@@ -138,11 +143,15 @@ socket.on("newMessage", (msg) => {
     });
 
     // ONLINE USERS
+    socket.off("onlineUsers");
+
     socket.on("onlineUsers", (users) => {
       setOnlineUsers(users);
     });
 
     // SEEN
+    socket.off("messageSeen");
+
     socket.on("messageSeen", (messageId) => {
       setMessages((prev) =>
         prev.map((msg) =>
@@ -150,6 +159,8 @@ socket.on("newMessage", (msg) => {
         )
       );
     });
+    socket.off("reactionUpdate");
+
     socket.on("reactionUpdate", ({ messageId, reactions }) => {
       setMessages((prev) =>
       prev.map((msg) =>
@@ -157,7 +168,11 @@ socket.on("newMessage", (msg) => {
     });
 
     return () => {
-      socket.disconnect();
+      socket.off("newMessage");
+      socket.off("typing");
+      socket.off("onlineUsers");
+      socket.off("messageSeen");
+      socket.off("reactionUpdate");
     };
   }, []);
 
