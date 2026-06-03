@@ -1,5 +1,17 @@
 import supabase from "../config/db.js";
 
+async function verifyAuthenticatedRequest(req, res) {
+  if (!req.user) {
+    res.status(401).json({
+      error: "Authentication required",
+    });
+
+    return false;
+  }
+
+  return true;
+}
+
 // Get all tasks
 export const getTasks = async (req, res) => {
   try {
@@ -64,7 +76,23 @@ export const createTask = async (req, res) => {
 export const updateTaskStatus = async (req, res) => {
   try {
     const { id } = req.params;
+
+    if (!(await verifyAuthenticatedRequest(req, res))) {
+      return;
+    }
     const { status, position } = req.body;
+
+    const { data: existingTask } = await supabase
+      .from("tasks")
+      .select("id")
+      .eq("id", id)
+      .single();
+
+    if (!existingTask) {
+      return res.status(404).json({
+        error: "Task not found",
+      });
+    }
 
     const validStatuses = ["todo", "in_progress", "done"];
 
@@ -108,7 +136,22 @@ export const updateTaskStatus = async (req, res) => {
 export const updateTask = async (req, res) => {
   try {
     const { id } = req.params;
+
+    if (!(await verifyAuthenticatedRequest(req, res))) {
+      return;
+    }
     const { title, description, status } = req.body;
+    const { data: existingTask } = await supabase
+      .from("tasks")
+      .select("id")
+      .eq("id", id)
+      .single();
+
+    if (!existingTask) {
+      return res.status(404).json({
+        error: "Task not found",
+      });
+    }
     const updateFields = {};
 
     if (title !== undefined) updateFields.title = title;
@@ -162,6 +205,22 @@ export const updateTask = async (req, res) => {
 export const deleteTask = async (req, res) => {
   try {
     const { id } = req.params;
+
+    if (!(await verifyAuthenticatedRequest(req, res))) {
+      return;
+    }
+
+    const { data: existingTask } = await supabase
+      .from("tasks")
+      .select("id")
+      .eq("id", id)
+      .single();
+
+    if (!existingTask) {
+      return res.status(404).json({
+        error: "Task not found",
+      });
+    }
 
     const { error } = await supabase
       .from("tasks")
