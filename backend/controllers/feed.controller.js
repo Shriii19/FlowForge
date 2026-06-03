@@ -58,29 +58,56 @@ function messageToFeedItem(message) {
   };
 }
 
+
+
 export const getFeedItems = async (req, res) => {
+  const page = Number(req.query.page || 1);
+  const limit = Number(req.query.limit || 20);
+  const offset = (page - 1) * limit;
   try {
     const [{ data: tasks, error: tasksError }, { data: messages, error: messagesError }] =
       await Promise.all([
-        supabase.from("tasks").select("id,title,description,status,created_at").order("created_at", { ascending: false }).limit(12),
-        supabase.from("messages").select("id,username,text,created_at").order("created_at", { ascending: false }).limit(12),
+        supabase.from("tasks").select("id,title,description,status,created_at").order("created_at", { ascending: false }).limit(50),
+        supabase.from("messages").select("id,username,text,created_at").order("created_at", { ascending: false }).limit(50),
       ]);
 
     if (tasksError) throw tasksError;
     if (messagesError) throw messagesError;
 
-    const items = [
-      ...manualItems,
-      ...(tasks || []).map(taskToFeedItem),
-      ...(messages || []).map(messageToFeedItem),
-    ].sort((a, b) => String(b.id).localeCompare(String(a.id)));
+    const taskItems = (tasks || []).map(taskToFeedItem);
+    const messageItems = (messages || []).map(messageToFeedItem);
 
-    res.status(200).json({ items });
-  } catch (error) {
-    console.error("Error loading feed:", error);
-    res.status(500).json({ error: "Failed to load activity feed" });
-  }
-};
+    const aggregatedItems = [
+      ...manualItems,
+      ...taskItems,
+      ...messageItems,
+    ];
+
+    aggregatedItems.sort((a, b) => {
+      const aTime = Date.parse(a.time || "") || 0;
+      const bTime = Date.parse(b.time || "") || 0;
+      return bTime - aTime;
+    });
+
+    const items = aggregatedItems.slice(
+      offset,
+      offset + limit
+    );
+
+    res.status(200).json({
+      items,
+      pagination: {
+        page,
+        limit,
+        total: aggregatedItems.length,
+        hasMore: offset + limit < aggregatedItems.length,
+      },
+    });
+      } catch (error) {
+        console.error("Error loading feed:", error);
+        res.status(500).json({ error: "Failed to load activity feed" });
+      }
+    };
 
 export const createFeedItem = async (req, res) => {
   const { title, body, type = "discussion" } = req.body || {};
