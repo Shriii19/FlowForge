@@ -13,6 +13,58 @@ function relativeTime(value) {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
+function buildOverviewMetrics(
+  tasks,
+  messages,
+  counts
+) {
+  const completed = counts.done;
+  const active = counts.in_progress;
+  const total = tasks.length;
+
+  const velocity = total
+    ? Number(
+        ((completed / total) * 100).toFixed(1)
+      )
+    : 0;
+
+  const momentum = Math.min(
+    100,
+    Math.round(
+      velocity +
+        active * 4 +
+        messages.length
+    )
+  );
+
+  return {
+    velocity,
+    momentum,
+    activeTasks: active,
+    completedTasks: completed,
+  };
+}
+
+function buildTaskSummary(
+  tasks,
+  counts
+) {
+  const total = Math.max(
+    1,
+    tasks.length
+  );
+
+  return {
+    totalTasks: tasks.length,
+    completedTasks: counts.done,
+    activeTasks:
+      counts.in_progress,
+    completionRate: Math.round(
+      (counts.done / total) * 100
+    ),
+  };
+}
+
 function statusLabel(status) {
   if (status === "in_progress") return "In Progress";
   if (status === "done") return "Done";
@@ -83,20 +135,18 @@ export const getOverviewInsights = async (req, res) => {
   try {
     const { tasks, messages } = await loadSourceData();
     const counts = countByStatus(tasks);
-    const completed = counts.done;
-    const active = counts.in_progress;
-    const total = tasks.length;
-    const velocity = total ? Number(((completed / total) * 100).toFixed(1)) : 0;
-    const momentum = Math.min(100, Math.round(velocity + active * 4 + messages.length));
+    const overviewMetrics =
+      buildOverviewMetrics(
+        tasks,
+        messages,
+        counts
+      );
 
     const recentActivity = buildRecentActivity(tasks, messages);
 
     res.status(200).json({
       projectName: "Project Alpha",
-      velocity,
-      momentum,
-      activeTasks: active,
-      completedTasks: completed,
+      ...overviewMetrics,
       heatmap: buildHeatmap(tasks, messages),
       recentActivity,
       topContributors: getTopContributors(messages.length),
@@ -111,7 +161,10 @@ export const getTaskInsights = async (req, res) => {
   try {
     const { tasks } = await loadSourceData();
     const counts = countByStatus(tasks);
-    const total = Math.max(1, tasks.length);
+    const summary = buildTaskSummary(
+      tasks,
+      counts
+    );
 
     const stages = [
       { label: "Todo", value: Number((counts.todo * 1.2 + 1).toFixed(1)), active: counts.todo > 0 },
@@ -139,12 +192,7 @@ export const getTaskInsights = async (req, res) => {
     }));
 
     res.status(200).json({
-      summary: {
-        totalTasks: tasks.length,
-        completedTasks: counts.done,
-        activeTasks: counts.in_progress,
-        completionRate: Math.round((counts.done / total) * 100),
-      },
+      summary,
       stages,
       flowNodes,
       history,
