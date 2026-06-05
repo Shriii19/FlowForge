@@ -200,6 +200,17 @@ export function KanbanBoard() {
     }
   };
 
+  function hasTaskPositionChanged(
+    task: Task,
+    newStatus: TaskStatus,
+    newPosition: number
+  ) {
+    return (
+      task.status !== newStatus ||
+      task.position !== newPosition
+    );
+  }
+
   const handleDragEnd = async (event: DragEndEvent) => {
     if (isSyncingRef.current) return;
 
@@ -252,10 +263,30 @@ export function KanbanBoard() {
     .sort((a, b) => a.position - b.position);
 
   // Reassign positions sequentially
-  const reorderedTasks = columnTasks.map((task, index) => ({
-    ...task,
-    position: index,
-  }));
+  const reorderedTasks = columnTasks
+    .map((task, index) => ({
+      ...task,
+      position: index,
+    }))
+    .filter((task) => {
+      const originalTask = tasks.find(
+        (t) => t.id === task.id
+      );
+
+      return Boolean(
+        originalTask &&
+          hasTaskPositionChanged(
+            originalTask,
+            task.status,
+            task.position
+          )
+      );
+    });
+
+    if (reorderedTasks.length === 0) {
+      isSyncingRef.current = false;
+      return;
+    }
 
   // Merge back updated positions
   updatedTasks = updatedTasks.map((task) => {
@@ -264,7 +295,15 @@ export function KanbanBoard() {
   });
 
   // Update frontend state
-  setTasks(updatedTasks);
+  setTasks((prev) =>
+    prev.map((task) => {
+      const updated = updatedTasks.find(
+        (t) => t.id === task.id
+      );
+
+      return updated || task;
+    })
+  );
 
   try {
     const session = await supabase?.auth.getSession();
