@@ -7,24 +7,27 @@ import type { User } from "@supabase/supabase-js";
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
     const client = supabase;
 
     if (!client) {
-      router.push("/login");
+      router.replace("/login");
       return;
     }
 
     const getUser = async () => {
       const { data } = await client.auth.getUser();
 
-      if (!data.user) {
-        router.push("/login");
-      } else {
-        setUser(data.user);
-      }
+  if (!data.user) {
+    router.replace("/login");
+  } else {
+    setUser(data.user);
+  }
+
+  setLoading(false);
     };
 
     getUser();
@@ -32,13 +35,19 @@ export function useAuth() {
     // 🔥 Listen for auth changes
     const { data: listener } = client.auth.onAuthStateChange(
       (_event, session) => {
-        if (!session) router.push("/login");
-        else setUser(session.user);
+        if (!session) {
+          setUser(null);
+          router.replace("/login");
+        } else {
+          setUser(session.user);
+        }
+
+        setLoading(false);
       }
     );
 
     return () => listener.subscription.unsubscribe();
   }, [router]);
 
-  return user;
+  return { user, loading };
 }
