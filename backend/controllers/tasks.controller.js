@@ -1,23 +1,43 @@
 import supabase from "../config/db.js";
 
-async function verifyAuthenticatedRequest(req, res) {
-  if (!req.user) {
-    res.status(401).json({
-      error: "Authentication required",
-    });
+function getUserId(req) {
+  return req.user?.id;
+}
 
-    return false;
+function requireUserId(req, res) {
+  const userId = getUserId(req);
+
+  if (!userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return null;
   }
 
-  return true;
+  return userId;
+}
+
+async function findOwnedTask(taskId, userId) {
+  const { data, error } = await supabase
+    .from("tasks")
+    .select("id")
+    .eq("id", taskId)
+    .eq("owner_id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  return data;
 }
 
 // Get all tasks
 export const getTasks = async (req, res) => {
   try {
+    const userId = requireUserId(req, res);
+    if (!userId) return;
+
     const { data, error } = await supabase
       .from("tasks")
       .select("*")
+      .eq("owner_id", userId)
       .order("position", { ascending: true });
 
     if (error) throw error;
@@ -31,7 +51,10 @@ export const getTasks = async (req, res) => {
 // Create a new task
 export const createTask = async (req, res) => {
   try {
-    const { title, description, status, position } = req.body;
+    const userId = requireUserId(req, res);
+    if (!userId) return;
+
+    const { title, description, status, position, project_id } = req.body;
 
     // Validate required fields and enforce length limits before any database
     // operation. Without these checks an authenticated user could insert empty
@@ -54,7 +77,7 @@ export const createTask = async (req, res) => {
 
     const { data, error } = await supabase
       .from("tasks")
-      .insert([{ title, description, status, position }])
+      .insert([{ title, description, status, position, project_id, owner_id: userId }])
       .select();
 
     if (error) throw error;
@@ -75,24 +98,11 @@ export const createTask = async (req, res) => {
 //update task status
 export const updateTaskStatus = async (req, res) => {
   try {
+    const userId = requireUserId(req, res);
+    if (!userId) return;
+
     const { id } = req.params;
-
-    if (!(await verifyAuthenticatedRequest(req, res))) {
-      return;
-    }
     const { status, position } = req.body;
-
-    const { data: existingTask } = await supabase
-      .from("tasks")
-      .select("id")
-      .eq("id", id)
-      .single();
-
-    if (!existingTask) {
-      return res.status(404).json({
-        error: "Task not found",
-      });
-    }
 
     const validStatuses = ["todo", "in_progress", "done"];
 
@@ -111,10 +121,19 @@ export const updateTaskStatus = async (req, res) => {
       });
     }
 
+    const existingTask = await findOwnedTask(id, userId);
+
+    if (!existingTask) {
+      return res.status(404).json({
+        error: "Task not found",
+      });
+    }
+
     const { data, error } = await supabase
       .from("tasks")
       .update({ status, position })
       .eq("id", id)
+      .eq("owner_id", userId)
       .select();
 
     if (error) throw error;
@@ -135,23 +154,11 @@ export const updateTaskStatus = async (req, res) => {
 };
 export const updateTask = async (req, res) => {
   try {
+    const userId = requireUserId(req, res);
+    if (!userId) return;
+
     const { id } = req.params;
-
-    if (!(await verifyAuthenticatedRequest(req, res))) {
-      return;
-    }
     const { title, description, status } = req.body;
-    const { data: existingTask } = await supabase
-      .from("tasks")
-      .select("id")
-      .eq("id", id)
-      .single();
-
-    if (!existingTask) {
-      return res.status(404).json({
-        error: "Task not found",
-      });
-    }
     const updateFields = {};
 
     // Apply the same length limits as createTask so an authenticated user
@@ -191,11 +198,18 @@ export const updateTask = async (req, res) => {
       return res.status(400).json({ error: "No fields to update" });
     }
 
+    const existingTask = await findOwnedTask(id, userId);
+
+    if (!existingTask) {
+      return res.status(404).json({ error: "Task not found" });
+    }
+
     // Update task in database
     const { data, error } = await supabase
       .from("tasks")
       .update(updateFields)
       .eq("id", id)
+      .eq("owner_id", userId)
       .select();
 
     if (error) throw error;
@@ -224,28 +238,22 @@ export const updateTask = async (req, res) => {
 // Delete a task
 export const deleteTask = async (req, res) => {
   try {
+    const userId = requireUserId(req, res);
+    if (!userId) return;
+
     const { id } = req.params;
 
-    if (!(await verifyAuthenticatedRequest(req, res))) {
-      return;
-    }
-
-    const { data: existingTask } = await supabase
-      .from("tasks")
-      .select("id")
-      .eq("id", id)
-      .single();
+    const existingTask = await findOwnedTask(id, userId);
 
     if (!existingTask) {
-      return res.status(404).json({
-        error: "Task not found",
-      });
+      return res.status(404).json({ error: "Task not found" });
     }
 
     const { error } = await supabase
       .from("tasks")
       .delete()
-      .eq("id", id);
+      .eq("id", id)
+      .eq("owner_id", userId);
 
     if (error) throw error;
 

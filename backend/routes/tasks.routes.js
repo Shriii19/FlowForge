@@ -12,12 +12,12 @@ import { validateTask } from "../middleware/validation.middleware.js";
 
 const router = express.Router();
 
-router.get("/", getTasks);
-
 // Centralized protection for all task mutation routes
 router.use(authenticateUser);
 
-router.post("/", createTask);
+router.get("/", getTasks);
+
+router.post("/", validateTask, createTask);
 
 router.patch("/:id", updateTaskStatus);
 
