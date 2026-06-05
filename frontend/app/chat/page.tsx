@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, type ChangeEvent } from "react";
+import { useState, useEffect, useRef, useMemo, type ChangeEvent } from "react";
 import type { Socket } from "socket.io-client";
 import { getSocket } from "../lib/socket";
 import EmojiPicker, { type EmojiClickData } from "emoji-picker-react";
@@ -131,7 +131,9 @@ socket.on("newMessage", (msg) => {
     socket.off("typing");
 
     socket.on("typing", (user) => {
-      setTypingUser(user);
+      setTypingUser((prev) => {
+        return prev === user ? prev : user;
+      });
 
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
@@ -146,7 +148,13 @@ socket.on("newMessage", (msg) => {
     socket.off("onlineUsers");
 
     socket.on("onlineUsers", (users) => {
-      setOnlineUsers(users);
+      setOnlineUsers((prev) => {
+        if (JSON.stringify(prev) === JSON.stringify(users)) {
+          return prev;
+        }
+
+        return users;
+      });
     });
 
     // SEEN
@@ -163,8 +171,24 @@ socket.on("newMessage", (msg) => {
 
     socket.on("reactionUpdate", ({ messageId, reactions }) => {
       setMessages((prev) =>
-      prev.map((msg) =>
-      msg.id === messageId ? { ...msg, reactions } : msg ));
+        prev.map((msg) => {
+          if (msg.id !== messageId) {
+            return msg;
+          }
+
+          if (
+            JSON.stringify(msg.reactions || {}) ===
+            JSON.stringify(reactions || {})
+          ) {
+            return msg;
+          }
+
+          return {
+            ...msg,
+            reactions,
+          };
+        })
+      );
     });
 
     return () => {
@@ -392,27 +416,32 @@ function stopRecording() {
       matchedMessageRef.current = null;
     }
 
-const filteredMessages = messages.filter((msg) => {
+const filteredMessages = useMemo(() => {
   const query = searchQuery.toLowerCase();
 
-  const matchesSearch =
-    msg.text?.toLowerCase().includes(query) ||
-    msg.user?.toLowerCase().includes(query) ||
-    (query === "image" && msg.image) ||
-    (query === "voice" && msg.audio);
-  if (filterType === "image") {
-    return matchesSearch && msg.image;
-  }
+  return messages.filter((msg) => {
+    const matchesSearch =
+      msg.text?.toLowerCase().includes(query) ||
+      msg.user?.toLowerCase().includes(query) ||
+      (query === "image" && msg.image) ||
+      (query === "voice" && msg.audio);
 
-  if (filterType === "voice") {
-    return matchesSearch && msg.audio;
-  }
+    if (filterType === "image") {
+      return matchesSearch && msg.image;
+    }
 
-  return matchesSearch;
-});
+    if (filterType === "voice") {
+      return matchesSearch && msg.audio;
+    }
+
+    return matchesSearch;
+  });
+}, [messages, searchQuery, filterType]);
 
 
-const visibleMessages = filteredMessages.slice(-visibleCount);
+const visibleMessages = useMemo(() => {
+  return filteredMessages.slice(-visibleCount);
+}, [filteredMessages, visibleCount]);
 
 return (
   <div className="mx-auto flex h-[calc(100vh-48px)] w-full max-w-6xl flex-col gap-4 overflow-hidden p-3 sm:p-6 md:p-10">
