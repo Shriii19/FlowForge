@@ -1,4 +1,5 @@
 import supabase from "../config/db.js";
+import { validateMessagePayload } from "../utils/messageValidation.js";
 
 export const getMessages = async (req, res) => {
   const { data, error } = await supabase
@@ -46,21 +47,15 @@ export const sendMessage = async (req, res) => {
       });
     }
 
-    if (!text && !image && !audio) {
-      return res.status(400).json({
-        error: "Message content required",
-      });
-    }
+    const validationError = validateMessagePayload({
+      text,
+      image,
+      audio,
+    });
 
-    if (text && typeof text !== "string") {
+    if (validationError) {
       return res.status(400).json({
-        error: "Invalid message format",
-      });
-    }
-
-    if (text && text.length > 1000) {
-      return res.status(400).json({
-        error: "Message exceeds maximum length",
+        error: validationError,
       });
     }
 
