@@ -11,20 +11,34 @@ const commands = [
   { id: 5, label: "Insights Feed", href: "/insights/feed" },
 ];
 
+function buildSearchableCommands(
+  commandList: typeof commands
+) {
+  return commandList.map((command) => ({
+    ...command,
+    searchLabel:
+      command.label.toLowerCase(),
+  }));
+}
+
 function filterCommands(
-  commandList: typeof commands,
+  commandList: ReturnType<
+    typeof buildSearchableCommands
+  >,
   query: string
 ) {
-  const normalizedQuery = query.trim().toLowerCase();
+  const normalizedQuery =
+    query.trim().toLowerCase();
 
   if (!normalizedQuery) {
     return commandList;
   }
 
-  return commandList.filter((command) =>
-    command.label
-      .toLowerCase()
-      .includes(normalizedQuery)
+  return commandList.filter(
+    (command) =>
+      command.searchLabel.includes(
+        normalizedQuery
+      )
   );
 }
 
@@ -46,21 +60,39 @@ export default function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(0);
-  const [recentCommands, setRecentCommands] = useState<typeof commands>([]);
-  
-  
+  const [recentCommands, setRecentCommands] =
+    useState<typeof commands>([]);
+
+  const searchableCommands =
+    useMemo(
+      () =>
+        buildSearchableCommands(
+          commands
+        ),
+      []
+    );
+
   useEffect(() => {
-    const stored = localStorage.getItem("flowforge-recent-commands");
+    const stored = localStorage.getItem(
+      "flowforge-recent-commands"
+    );
 
     if (stored) {
-      setRecentCommands(JSON.parse(stored));
+      setRecentCommands(
+        JSON.parse(stored)
+      );
     }
   }, []);
+
   useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
+    function handleKeyDown(
+      event: KeyboardEvent
+    ) {
       const isShortcut =
-        (event.ctrlKey || event.metaKey) &&
-        event.key.toLowerCase() === "k";
+        (event.ctrlKey ||
+          event.metaKey) &&
+        event.key.toLowerCase() ===
+          "k";
 
       if (isShortcut) {
         event.preventDefault();
@@ -73,31 +105,47 @@ export default function CommandPalette() {
       }
     }
 
-    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener(
+      "keydown",
+      handleKeyDown
+    );
 
     return () => {
-      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener(
+        "keydown",
+        handleKeyDown
+      );
     };
   }, []);
 
-  const filteredCommands = useMemo(
-    () => filterCommands(commands, query),
-    [query]
-  );
-  
+  const filteredCommands =
+    useMemo(
+      () =>
+        filterCommands(
+          searchableCommands,
+          query
+        ),
+      [searchableCommands, query]
+    );
+
   useEffect(() => {
     setSelected(0);
   }, [query]);
 
   useEffect(() => {
-    function handleNavigation(event: KeyboardEvent) {
+    function handleNavigation(
+      event: KeyboardEvent
+    ) {
       if (!open) return;
 
       if (event.key === "ArrowDown") {
         event.preventDefault();
 
         setSelected((prev) =>
-          prev === filteredCommands.length - 1 ? 0 : prev + 1
+          prev ===
+          filteredCommands.length - 1
+            ? 0
+            : prev + 1
         );
       }
 
@@ -105,24 +153,32 @@ export default function CommandPalette() {
         event.preventDefault();
 
         setSelected((prev) =>
-          prev === 0 ? filteredCommands.length - 1 : prev - 1
+          prev === 0
+            ? filteredCommands.length - 1
+            : prev - 1
         );
       }
 
       if (event.key === "Enter") {
-        const command = filteredCommands[selected];
+        const command =
+          filteredCommands[selected];
 
         if (command) {
-          const updatedRecent = buildRecentCommands(
-            command,
-            recentCommands
-          );
+          const updatedRecent =
+            buildRecentCommands(
+              command,
+              recentCommands
+            );
 
-          setRecentCommands(updatedRecent);
+          setRecentCommands(
+            updatedRecent
+          );
 
           localStorage.setItem(
             "flowforge-recent-commands",
-            JSON.stringify(updatedRecent)
+            JSON.stringify(
+              updatedRecent
+            )
           );
 
           router.push(command.href);
@@ -133,19 +189,30 @@ export default function CommandPalette() {
       }
     }
 
-    window.addEventListener("keydown", handleNavigation);
+    window.addEventListener(
+      "keydown",
+      handleNavigation
+    );
 
     return () => {
-      window.removeEventListener("keydown", handleNavigation);
+      window.removeEventListener(
+        "keydown",
+        handleNavigation
+      );
     };
-  }, [open, filteredCommands, selected, router]);
+  }, [
+    open,
+    filteredCommands,
+    selected,
+    router,
+    recentCommands,
+  ]);
 
   if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-[999] flex items-start justify-center bg-black/30 backdrop-blur-sm pt-32 px-4 animate-in fade-in duration-200">
       <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-outline-variant bg-surface shadow-2xl animate-in zoom-in-95 fade-in duration-200 ease-out">
-        
         <div className="flex items-center gap-3 border-b border-outline-variant px-4 py-4">
           <span className="material-symbols-outlined text-outline">
             search
@@ -154,7 +221,11 @@ export default function CommandPalette() {
           <input
             autoFocus
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) =>
+              setQuery(
+                event.target.value
+              )
+            }
             placeholder="Search pages and actions..."
             className="flex-1 bg-transparent outline-none text-on-surface placeholder:text-outline"
           />
@@ -164,46 +235,50 @@ export default function CommandPalette() {
           </span>
         </div>
 
-        {!query && recentCommands.length > 0 && (
-  <>
-    <div className="px-4 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-widest text-outline">
-      Recent
-    </div>
+        {!query &&
+          recentCommands.length > 0 && (
+            <>
+              <div className="px-4 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-widest text-outline">
+                Recent
+              </div>
 
-    {recentCommands.map((command) => (
-      <button
-        key={`recent-${command.id}`}
-        onClick={() => {
-          router.push(command.href);
+              {recentCommands.map(
+                (command) => (
+                  <button
+                    key={`recent-${command.id}`}
+                    onClick={() => {
+                      router.push(
+                        command.href
+                      );
 
-          setOpen(false);
-          setQuery("");
-        }}
-        className="flex w-full items-center justify-between px-4 py-3 text-left transition-all duration-200 hover:bg-surface-container-low"
-      >
-        <span className="font-medium text-on-surface">
-          {command.label}
-        </span>
+                      setOpen(false);
+                      setQuery("");
+                    }}
+                    className="flex w-full items-center justify-between px-4 py-3 text-left transition-all duration-200 hover:bg-surface-container-low"
+                  >
+                    <span className="font-medium text-on-surface">
+                      {command.label}
+                    </span>
 
-        <span className="rounded-md border border-outline-variant bg-surface-container-low px-2 py-1 text-[10px] text-outline">
-          Recent
-        </span>
-      </button>
-    ))}
+                    <span className="rounded-md border border-outline-variant bg-surface-container-low px-2 py-1 text-[10px] text-outline">
+                      Recent
+                    </span>
+                  </button>
+                )
+              )}
 
-    <div className="my-2 border-t border-outline-variant" />
-  </>
-)}
+              <div className="my-2 border-t border-outline-variant" />
+            </>
+          )}
 
         <div className="max-h-80 overflow-y-auto py-2">
-          
           <div className="px-4 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-widest text-outline">
             Navigation
           </div>
 
-          {filteredCommands.length === 0 ? (
+          {filteredCommands.length ===
+          0 ? (
             <div className="flex flex-col items-center justify-center gap-2 px-4 py-10 text-center">
-              
               <span className="material-symbols-outlined text-4xl text-outline/60">
                 search_off
               </span>
@@ -213,47 +288,56 @@ export default function CommandPalette() {
               </p>
 
               <p className="text-xs text-outline">
-                Try searching for pages or actions.
+                Try searching for pages
+                or actions.
               </p>
             </div>
           ) : (
-            filteredCommands.map((command, index) => (
-              <button
-                key={command.id}
-                onClick={() => {
+            filteredCommands.map(
+              (command, index) => (
+                <button
+                  key={command.id}
+                  onClick={() => {
+                    const updatedRecent =
+                      buildRecentCommands(
+                        command,
+                        recentCommands
+                      );
 
-                  const updatedRecent = buildRecentCommands(
-                    command,
-                    recentCommands
-                  );
+                    setRecentCommands(
+                      updatedRecent
+                    );
 
-                  setRecentCommands(updatedRecent);
+                    localStorage.setItem(
+                      "flowforge-recent-commands",
+                      JSON.stringify(
+                        updatedRecent
+                      )
+                    );
 
-                  localStorage.setItem(
-                    "flowforge-recent-commands",
-                    JSON.stringify(updatedRecent)
-                  );
+                    router.push(
+                      command.href
+                    );
 
-                  router.push(command.href);
+                    setOpen(false);
+                    setQuery("");
+                  }}
+                  className={`flex w-full items-center justify-between px-4 py-3 text-left transition-all duration-200 ${
+                    selected === index
+                      ? "bg-primary/10 text-primary"
+                      : "hover:bg-surface-container-low"
+                  }`}
+                >
+                  <span className="font-medium">
+                    {command.label}
+                  </span>
 
-                  setOpen(false);
-                  setQuery("");
-                }}
-                className={`flex w-full items-center justify-between px-4 py-3 text-left transition-all duration-200 ${
-                  selected === index
-                    ? "bg-primary/10 text-primary"
-                    : "hover:bg-surface-container-low"
-                }`}
-              >
-                <span className="font-medium">
-                  {command.label}
-                </span>
-
-                <span className="rounded-md border border-outline-variant bg-surface-container-low px-2 py-1 text-[10px] text-outline">
-                  Enter
-                </span>
-              </button>
-            ))
+                  <span className="rounded-md border border-outline-variant bg-surface-container-low px-2 py-1 text-[10px] text-outline">
+                    Enter
+                  </span>
+                </button>
+              )
+            )
           )}
         </div>
       </div>
