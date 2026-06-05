@@ -3,36 +3,69 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
+type Notification = {
+  id: number;
+  title: string;
+  description: string;
+  time: string;
+  unread: boolean;
+  href: string;
+};
+
+const initialNotifications: Notification[] = [
+  {
+    id: 1,
+    title: "Task moved to Review",
+    description: "Landing page redesign moved to review stage.",
+    time: "2m ago",
+    unread: true,
+    href: "/projects",
+  },
+  {
+    id: 2,
+    title: "New chat message",
+    description: "Alex sent a new team message.",
+    time: "10m ago",
+    unread: true,
+    href: "/chat",
+  },
+  {
+    id: 3,
+    title: "Project created",
+    description: "FlowForge Mobile App project was created.",
+    time: "1h ago",
+    unread: false,
+    href: "/projects",
+  },
+];
+
+function markNotificationRead(
+  notifications: Notification[],
+  id: number
+) {
+  return notifications.map((item) =>
+    item.id === id
+      ? { ...item, unread: false }
+      : item
+  );
+}
+
+function markAllNotificationsRead(
+  notifications: Notification[]
+) {
+  return notifications.map((notification) => ({
+    ...notification,
+    unread: false,
+  }));
+}
+
 export default function NotificationsPanel() {
   const [open, setOpen] = useState(false);
   const router = useRouter();
 
-  const [notifications, setNotifications] = useState([
-    {
-      id: 1,
-      title: "Task moved to Review",
-      description: "Landing page redesign moved to review stage.",
-      time: "2m ago",
-      unread: true,
-      href: "/projects",
-    },
-    {
-      id: 2,
-      title: "New chat message",
-      description: "Alex sent a new team message.",
-      time: "10m ago",
-      unread: true,
-      href: "/chat",
-    },
-    {
-      id: 3,
-      title: "Project created",
-      description: "FlowForge Mobile App project was created.",
-      time: "1h ago",
-      unread: false,
-      href: "/projects",
-    },
-  ]);
+  const [notifications, setNotifications] =
+    useState<Notification[]>(initialNotifications);
+    
   const panelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -65,17 +98,14 @@ export default function NotificationsPanel() {
     };
   }, []);
 
-  const unreadCount = notifications.filter(
-    (notification) => notification.unread
-  ).length;
+  const unreadCount = notifications.reduce(
+    (count, notification) =>
+      notification.unread ? count + 1 : count,
+    0
+  );
 
   function markAllAsRead() {
-    setNotifications((prev) =>
-      prev.map((notification) => ({
-        ...notification,
-        unread: false,
-      }))
-    );
+    setNotifications(markAllNotificationsRead);
   }
 
   return (
@@ -165,13 +195,9 @@ export default function NotificationsPanel() {
                 key={notification.id}
                 onClick={() => {
                   setNotifications((prev) =>
-                    prev.map((item) =>
-                      item.id === notification.id
-                        ? {
-                            ...item,
-                            unread: false,
-                          }
-                        : item
+                    markNotificationRead(
+                      prev,
+                      notification.id
                     )
                   );
 
