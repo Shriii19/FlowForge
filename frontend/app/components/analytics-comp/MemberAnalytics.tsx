@@ -8,14 +8,51 @@ type MemberAnalyticsProps = {
   onSelectMember: (memberId: string) => void;
 };
 
+function getCompletionRate(
+  completed: number,
+  assigned: number
+) {
+  return assigned > 0
+    ? Math.round((completed / assigned) * 100)
+    : 0;
+}
+
+function getReviewLoad(
+  reviews: number
+) {
+  return Math.min(100, reviews * 4);
+}
+
 export default function MemberAnalytics({
   members,
   selectedMember,
   onSelectMember,
 }: MemberAnalyticsProps) {
-  const completionRate = Math.round((selectedMember.completed / selectedMember.assigned) * 100);
-  const reviewLoad = Math.min(100, selectedMember.reviews * 4);
-  const otherPercent = 100 - completionRate;
+  const analyticsMetrics = useMemo(
+    () => {
+      const completionRate =
+        getCompletionRate(
+          selectedMember.completed,
+          selectedMember.assigned
+        );
+
+      return {
+        completionRate,
+        reviewLoad: getReviewLoad(
+          selectedMember.reviews
+        ),
+        otherPercent:
+          100 - completionRate,
+      };
+    },
+    [selectedMember]
+  );
+
+  const {
+    completionRate,
+    reviewLoad,
+    otherPercent,
+  } = analyticsMetrics;
 
   return (
     <section className="grid grid-cols-1 gap-gutter lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -110,7 +147,12 @@ export default function MemberAnalytics({
             >
               <div className="flex items-center justify-between gap-3">
                 <span className="font-label-md">{member.name}</span>
-                <span className="text-xs">{Math.round((member.completed / member.assigned) * 100)}%</span>
+                <span className="text-xs">
+                  {getCompletionRate(
+                    member.completed,
+                    member.assigned
+                  )}%
+                </span>
               </div>
               <p className="mt-1 text-xs opacity-75">{member.role}</p>
             </button>
