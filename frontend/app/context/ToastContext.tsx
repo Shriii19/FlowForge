@@ -17,7 +17,7 @@ interface ToastContextValue {
 const ToastContext = createContext<ToastContextValue>({
   showToast: () => {},
 });
-
+const MAX_TOASTS = 4;
 export function useToast() {
   return useContext(ToastContext);
 }
@@ -25,13 +25,41 @@ export function useToast() {
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const showToast = useCallback((message: string, type: ToastType = "info") => {
-    const id = Date.now();
-    setToasts((prev) => [...prev, { id, message, type }]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 4000);
-  }, []);
+  const showToast = useCallback(
+    (message: string, type: ToastType = "info") => {
+      const id = Date.now();
+
+      setToasts((prev) => {
+        const duplicateExists = prev.some(
+          (toast) =>
+            toast.message === message &&
+            toast.type === type
+        );
+
+        if (duplicateExists) {
+          return prev;
+        }
+
+        const updated = [
+          ...prev,
+          { id, message, type },
+        ];
+
+        if (updated.length > MAX_TOASTS) {
+          updated.shift();
+        }
+
+        return updated;
+      });
+
+      setTimeout(() => {
+        setToasts((prev) =>
+          prev.filter((t) => t.id !== id)
+        );
+      }, 4000);
+    },
+    []
+  );
 
   const removeToast = (id: number) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));

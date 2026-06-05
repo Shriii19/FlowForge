@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, type ChangeEvent } from "react";
-import { io, Socket } from "socket.io-client";
+import type { Socket } from "socket.io-client";
+import { getSocket } from "../lib/socket";
 import EmojiPicker, { type EmojiClickData } from "emoji-picker-react";
 import { Smile, Paperclip, Mic, Square } from "lucide-react";
 import { supabase } from "../lib/supabase";
@@ -63,12 +64,13 @@ export default function ChatPage() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const isAtBottomRef = useRef(true);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [visibleCount, setVisibleCount] = useState(100);
   
 
   //  SOCKET SETUP
   useEffect(() => {
-    const socket = io("http://localhost:5000");
-    socketRef.current = socket;
+  const socket = getSocket();
+  socketRef.current = socket;
 
     // FETCH MESSAGES
     fetch("http://localhost:5000/api/chat")
@@ -93,6 +95,8 @@ export default function ChatPage() {
       });
 
 // NEW MESSAGE
+socket.off("newMessage");
+
 socket.on("newMessage", (msg) => {
   setMessages((prev) => {
     const alreadyExists = prev.some(
@@ -124,6 +128,8 @@ socket.on("newMessage", (msg) => {
   }
 });
     // TYPING
+    socket.off("typing");
+
     socket.on("typing", (user) => {
       setTypingUser(user);
 
@@ -137,11 +143,15 @@ socket.on("newMessage", (msg) => {
     });
 
     // ONLINE USERS
+    socket.off("onlineUsers");
+
     socket.on("onlineUsers", (users) => {
       setOnlineUsers(users);
     });
 
     // SEEN
+    socket.off("messageSeen");
+
     socket.on("messageSeen", (messageId) => {
       setMessages((prev) =>
         prev.map((msg) =>
@@ -149,6 +159,8 @@ socket.on("newMessage", (msg) => {
         )
       );
     });
+    socket.off("reactionUpdate");
+
     socket.on("reactionUpdate", ({ messageId, reactions }) => {
       setMessages((prev) =>
       prev.map((msg) =>
@@ -156,7 +168,11 @@ socket.on("newMessage", (msg) => {
     });
 
     return () => {
-      socket.disconnect();
+      socket.off("newMessage");
+      socket.off("typing");
+      socket.off("onlineUsers");
+      socket.off("messageSeen");
+      socket.off("reactionUpdate");
     };
   }, []);
 
@@ -395,8 +411,8 @@ const filteredMessages = messages.filter((msg) => {
   return matchesSearch;
 });
 
-  
 
+const visibleMessages = filteredMessages.slice(-visibleCount);
 
 return (
   <div className="mx-auto flex h-[calc(100vh-48px)] w-full max-w-6xl flex-col gap-4 overflow-hidden p-3 sm:p-6 md:p-10">
@@ -514,8 +530,18 @@ return (
     }}
     className="h-[55vh] overflow-y-auto rounded-3xl border border-(--line) bg-white p-4 shadow-sm sm:h-[65vh] sm:p-5"
   >
-    {filteredMessages.map((msg, i) => {
-      const prevMsg = filteredMessages[i - 1];
+    {filteredMessages.length > visibleCount && (
+      <div className="mb-4 flex justify-center">
+        <button
+          onClick={() => setVisibleCount((prev) => prev + 100)}
+          className="rounded-lg bg-slate-100 px-4 py-2 text-sm hover:bg-slate-200"
+        >
+          Load Older Messages
+        </button>
+      </div>
+    )}
+    {visibleMessages.map((msg, i) => {
+      const prevMsg = visibleMessages[i - 1];
       const isSameUser = prevMsg && prevMsg.user === msg.user;
       const isMe = msg.user === username;
 
