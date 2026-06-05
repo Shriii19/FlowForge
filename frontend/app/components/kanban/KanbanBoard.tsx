@@ -211,6 +211,31 @@ export function KanbanBoard() {
     );
   }
 
+  function reconcileTaskPositions(
+    tasks: Task[],
+    status: TaskStatus
+  ) {
+    return tasks
+      .filter((task) => task.status === status)
+      .sort((a, b) => a.position - b.position)
+      .map((task, index) => ({
+        ...task,
+        position: index,
+      }));
+  }
+
+  function shouldSyncTaskUpdate(
+    originalTask: Task,
+    updatedTask: Task
+  ) {
+    return (
+      originalTask.status !==
+        updatedTask.status ||
+      originalTask.position !==
+        updatedTask.position
+    );
+  }
+
   const handleDragEnd = async (event: DragEndEvent) => {
     if (isSyncingRef.current) return;
 
@@ -258,27 +283,24 @@ export function KanbanBoard() {
   );
 
   // Get tasks of affected column
-  const columnTasks = updatedTasks
-    .filter((task) => task.status === newStatus)
-    .sort((a, b) => a.position - b.position);
+  const reconciledTasks =
+    reconcileTaskPositions(
+      updatedTasks,
+      newStatus
+    );
 
-  // Reassign positions sequentially
-  const reorderedTasks = columnTasks
-    .map((task, index) => ({
-      ...task,
-      position: index,
-    }))
-    .filter((task) => {
+  const reorderedTasks =
+    reconciledTasks.filter(
+      (task) => {
       const originalTask = tasks.find(
         (t) => t.id === task.id
       );
 
       return Boolean(
         originalTask &&
-          hasTaskPositionChanged(
+          shouldSyncTaskUpdate(
             originalTask,
-            task.status,
-            task.position
+            task
           )
       );
     });
