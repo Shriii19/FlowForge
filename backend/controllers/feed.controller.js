@@ -58,7 +58,21 @@ function messageToFeedItem(message) {
   };
 }
 
+function buildFeedItems(tasks = [], messages = []) {
+  return [
+    ...manualItems,
+    ...(tasks || []).map(taskToFeedItem),
+    ...(messages || []).map(messageToFeedItem),
+  ];
+}
 
+function sortFeedItems(items = []) {
+  return [...items].sort((a, b) => {
+    const aTime = Date.parse(a.time || "") || 0;
+    const bTime = Date.parse(b.time || "") || 0;
+    return bTime - aTime;
+  });
+}
 
 export const getFeedItems = async (req, res) => {
   const page = Number(req.query.page || 1);
@@ -74,20 +88,9 @@ export const getFeedItems = async (req, res) => {
     if (tasksError) throw tasksError;
     if (messagesError) throw messagesError;
 
-    const taskItems = (tasks || []).map(taskToFeedItem);
-    const messageItems = (messages || []).map(messageToFeedItem);
-
-    const aggregatedItems = [
-      ...manualItems,
-      ...taskItems,
-      ...messageItems,
-    ];
-
-    aggregatedItems.sort((a, b) => {
-      const aTime = Date.parse(a.time || "") || 0;
-      const bTime = Date.parse(b.time || "") || 0;
-      return bTime - aTime;
-    });
+    const aggregatedItems = sortFeedItems(
+      buildFeedItems(tasks, messages)
+    );
 
     const items = aggregatedItems.slice(
       offset,

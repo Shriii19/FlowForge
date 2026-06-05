@@ -11,6 +11,35 @@ const commands = [
   { id: 5, label: "Insights Feed", href: "/insights/feed" },
 ];
 
+function filterCommands(
+  commandList: typeof commands,
+  query: string
+) {
+  const normalizedQuery = query.trim().toLowerCase();
+
+  if (!normalizedQuery) {
+    return commandList;
+  }
+
+  return commandList.filter((command) =>
+    command.label
+      .toLowerCase()
+      .includes(normalizedQuery)
+  );
+}
+
+function buildRecentCommands(
+  command: (typeof commands)[number],
+  recentCommands: typeof commands
+) {
+  return [
+    command,
+    ...recentCommands.filter(
+      (item) => item.id !== command.id
+    ),
+  ].slice(0, 5);
+}
+
 export default function CommandPalette() {
   const router = useRouter();
 
@@ -51,12 +80,13 @@ export default function CommandPalette() {
     };
   }, []);
 
-  const filteredCommands = useMemo(() => {
-    if (!query.trim()) return commands;
-
-    return commands.filter((command) =>
-      command.label.toLowerCase().includes(query.toLowerCase())
-    );
+  const filteredCommands = useMemo(
+    () => filterCommands(commands, query),
+    [query]
+  );
+  
+  useEffect(() => {
+    setSelected(0);
   }, [query]);
 
   useEffect(() => {
@@ -83,10 +113,10 @@ export default function CommandPalette() {
         const command = filteredCommands[selected];
 
         if (command) {
-          const updatedRecent = [
+          const updatedRecent = buildRecentCommands(
             command,
-            ...recentCommands.filter((item) => item.id !== command.id),
-          ].slice(0, 5);
+            recentCommands
+          );
 
           setRecentCommands(updatedRecent);
 
@@ -192,10 +222,10 @@ export default function CommandPalette() {
                 key={command.id}
                 onClick={() => {
 
-                  const updatedRecent = [
+                  const updatedRecent = buildRecentCommands(
                     command,
-                    ...recentCommands.filter((item) => item.id !== command.id),
-                  ].slice(0, 5);
+                    recentCommands
+                  );
 
                   setRecentCommands(updatedRecent);
 

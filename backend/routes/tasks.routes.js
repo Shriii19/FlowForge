@@ -12,14 +12,17 @@ import { validateTask } from "../middleware/validation.middleware.js";
 
 const router = express.Router();
 
-router.get("/", authenticateUser, getTasks);
+// Centralized protection for all task mutation routes
+router.use(authenticateUser);
 
-router.post("/", authenticateUser, validateTask, createTask);
+router.get("/", getTasks);
 
-router.patch("/:id", authenticateUser, updateTaskStatus);
+router.post("/", validateTask, createTask);
 
-router.patch("/:id/edit", authenticateUser, updateTask);
+router.patch("/:id", updateTaskStatus);
 
-router.delete("/:id", authenticateUser, deleteTask);
+router.patch("/:id/edit", updateTask);
+
+router.delete("/:id", deleteTask);
 
 export default router;

@@ -1,16 +1,28 @@
 import supabase from "../config/db.js";
 
+function extractBearerToken(authHeader) {
+  if (!authHeader || typeof authHeader !== "string") {
+    return null;
+  }
+
+  if (!authHeader.startsWith("Bearer ")) {
+    return null;
+  }
+
+  return authHeader.split(" ")[1];
+}
+
 export const authenticateUser = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    const token = extractBearerToken(authHeader);
+
+    if (!token) {
       return res.status(401).json({
         error: "Unauthorized",
       });
     }
-
-    const token = authHeader.split(" ")[1];
 
     const {
       data: { user },

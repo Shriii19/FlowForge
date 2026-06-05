@@ -55,6 +55,30 @@ async function loadSourceData() {
   };
 }
 
+function buildRecentActivity(tasks = [], messages = []) {
+  return [
+    ...tasks.slice(-4).map((task) => ({
+      id: `task-${task.id}`,
+      label: `${task.title || "Untitled task"} moved to ${statusLabel(task.status)}`,
+      time: relativeTime(task.created_at),
+    })),
+    ...messages.slice(-3).map((message) => ({
+      id: `message-${message.id}`,
+      label: `${message.username || "Team member"} shared an update`,
+      time: relativeTime(message.created_at),
+    })),
+  ]
+    .slice(-5)
+    .reverse();
+}
+
+function getTopContributors(messageCount) {
+  return fallbackContributors.slice(
+    0,
+    Math.max(3, Math.min(4, messageCount || 3))
+  );
+}
+
 export const getOverviewInsights = async (req, res) => {
   try {
     const { tasks, messages } = await loadSourceData();
@@ -65,18 +89,7 @@ export const getOverviewInsights = async (req, res) => {
     const velocity = total ? Number(((completed / total) * 100).toFixed(1)) : 0;
     const momentum = Math.min(100, Math.round(velocity + active * 4 + messages.length));
 
-    const recentActivity = [
-      ...tasks.slice(-4).map((task) => ({
-        id: `task-${task.id}`,
-        label: `${task.title || "Untitled task"} moved to ${statusLabel(task.status)}`,
-        time: relativeTime(task.created_at),
-      })),
-      ...messages.slice(-3).map((message) => ({
-        id: `message-${message.id}`,
-        label: `${message.username || "Team member"} shared an update`,
-        time: relativeTime(message.created_at),
-      })),
-    ].slice(-5).reverse();
+    const recentActivity = buildRecentActivity(tasks, messages);
 
     res.status(200).json({
       projectName: "Project Alpha",
@@ -86,7 +99,7 @@ export const getOverviewInsights = async (req, res) => {
       completedTasks: completed,
       heatmap: buildHeatmap(tasks, messages),
       recentActivity,
-      topContributors: fallbackContributors.slice(0, Math.max(3, Math.min(4, messages.length || 3))),
+      topContributors: getTopContributors(messages.length),
     });
   } catch (error) {
     console.error("Error loading overview insights:", error);
