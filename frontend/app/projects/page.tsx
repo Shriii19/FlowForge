@@ -3,7 +3,7 @@
 import { Plus, CalendarClock, Users, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { isSupabaseConfigured, supabase } from "@/app/lib/supabase";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import ProjectDialog from "@/app/components/ProjectDialog";
 
 
@@ -79,14 +79,27 @@ export default function ProjectsPage() {
 
     return () => subscription.unsubscribe();
   }, []);
-  const filteredProjects = projects.filter((project) => {
-    const query = debouncedSearchTerm.toLowerCase();
-    const projectName = (project.name || "").toLowerCase();
-    return (
-      projectName.includes(query) ||
-      (project.tags && project.tags.some((tag: string) => tag.toLowerCase().includes(query)))
-    );
-  });
+  const filteredProjects = useMemo(() => {
+    const query = debouncedSearchTerm.trim().toLowerCase();
+
+    if (!query) {
+      return projects;
+    }
+
+    return projects.filter((project) => {
+      const projectName = (project.name || "").toLowerCase();
+
+      return (
+        projectName.includes(query) ||
+        (project.tags &&
+          project.tags.some((tag: string) =>
+            tag.toLowerCase().includes(query)
+          ))
+      );
+    });
+  }, [projects, debouncedSearchTerm]);
+
+  const hasProjects = filteredProjects.length > 0;
 
   const handleNewProject = () => {
     if (!isSupabaseConfigured || !supabase) {
@@ -154,7 +167,7 @@ export default function ProjectsPage() {
           <h3 className="text-lg font-semibold text-slate-900">Loading projects...</h3>
           <p className="mt-1 text-slate-500">Fetching your latest updates.</p>
         </div>
-      ) : filteredProjects.length > 0 ? (
+      ) : hasProjects ? (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
           {filteredProjects.map((project) => (
             <div
