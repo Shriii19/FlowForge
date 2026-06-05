@@ -14,12 +14,15 @@ const router = express.Router();
 
 router.get("/", getTasks);
 
-router.post("/", authenticateUser, createTask);
+// Centralized protection for all task mutation routes
+router.use(authenticateUser);
 
-router.patch("/:id", authenticateUser, updateTaskStatus);
+router.post("/", createTask);
 
-router.patch("/:id/edit", authenticateUser, updateTask);
+router.patch("/:id", updateTaskStatus);
 
-router.delete("/:id", authenticateUser, deleteTask);
+router.patch("/:id/edit", updateTask);
+
+router.delete("/:id", deleteTask);
 
 export default router;
