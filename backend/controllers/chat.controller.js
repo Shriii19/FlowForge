@@ -46,6 +46,18 @@ export const sendMessage = async (req, res) => {
         error: "Unauthorized user",
       });
     }
+    
+  const validationError = validateMessagePayload({
+    text,
+    image,
+    audio,
+  });
+
+  if (validationError) {
+    return res.status(400).json({
+      error: validationError,
+    });
+  }
 
     const validationError = validateMessagePayload({
       text,
