@@ -33,6 +33,86 @@ type ChatMessageResponse = {
   status?: string | null;
 };
 
+function reconcileIncomingMessage(
+  messages: Message[],
+  incomingMessage: ChatMessageResponse
+) {
+  const exists = messages.some(
+    (message) =>
+      message.user === incomingMessage.username &&
+      message.text === incomingMessage.text &&
+      message.image === incomingMessage.image &&
+      message.audio === incomingMessage.audio
+  );
+
+  if (exists) {
+    return messages;
+  }
+
+  return [
+    ...messages,
+    {
+      id: incomingMessage.id,
+      user: incomingMessage.username,
+      text: incomingMessage.text,
+      image: incomingMessage.image || undefined,
+      audio: incomingMessage.audio || undefined,
+      time: new Date(
+        incomingMessage.created_at
+      ).toLocaleTimeString(),
+      status: incomingMessage.status || "sent",
+    },
+  ];
+}
+
+function reconcileSeenStatus(
+  messages: Message[],
+  messageId: string
+) {
+  return messages.map((message) =>
+    message.id === messageId
+      ? { ...message, status: "seen" }
+      : message
+  );
+}
+
+function reconcileReactionUpdate(
+  messages: Message[],
+  messageId: string,
+  reactions: Record<string, number>
+) {
+  return messages.map((message) => {
+    if (message.id !== messageId) {
+      return message;
+    }
+
+    if (
+      JSON.stringify(
+        message.reactions || {}
+      ) ===
+      JSON.stringify(reactions || {})
+    ) {
+      return message;
+    }
+
+    return {
+      ...message,
+      reactions,
+    };
+  });
+}
+
+function shouldUpdateOnlineUsers(
+  currentUsers: string[],
+  incomingUsers: string[]
+) {
+  return (
+    JSON.stringify(currentUsers) !==
+    JSON.stringify(incomingUsers)
+  );
+}
+
+
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -98,30 +178,12 @@ export default function ChatPage() {
 socket.off("newMessage");
 
 socket.on("newMessage", (msg) => {
-  setMessages((prev) => {
-    const alreadyExists = prev.some(
-      (m) =>
-        m.user === msg.username &&
-        m.text === msg.text &&
-        m.image === msg.image &&
-        m.audio === msg.audio
-    );
-
-    if (alreadyExists) return prev;
-
-    return [
-      ...prev,
-      {
-        id: msg.id,
-        user: msg.username,
-        text: msg.text,
-        image: msg.image || undefined,
-        audio: msg.audio || undefined,
-        time: new Date(msg.created_at).toLocaleTimeString(),
-        status: msg.status,
-      },
-    ];
-  });
+  setMessages((prev) =>
+    reconcileIncomingMessage(
+      prev,
+      msg
+    )
+  );
 
   if (!isAtBottomRef.current) {
     setUnreadCount((prev) => prev + 1);
@@ -148,13 +210,11 @@ socket.on("newMessage", (msg) => {
     socket.off("onlineUsers");
 
     socket.on("onlineUsers", (users) => {
-      setOnlineUsers((prev) => {
-        if (JSON.stringify(prev) === JSON.stringify(users)) {
-          return prev;
-        }
-
-        return users;
-      });
+      setOnlineUsers((prev) =>
+        shouldUpdateOnlineUsers(prev, users)
+          ? users
+          : prev
+      );
     });
 
     // SEEN
@@ -162,34 +222,26 @@ socket.on("newMessage", (msg) => {
 
     socket.on("messageSeen", (messageId) => {
       setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === messageId ? { ...msg, status: "seen" } : msg
+        reconcileSeenStatus(
+          prev,
+          messageId
         )
       );
     });
     socket.off("reactionUpdate");
 
-    socket.on("reactionUpdate", ({ messageId, reactions }) => {
-      setMessages((prev) =>
-        prev.map((msg) => {
-          if (msg.id !== messageId) {
-            return msg;
-          }
-
-          if (
-            JSON.stringify(msg.reactions || {}) ===
-            JSON.stringify(reactions || {})
-          ) {
-            return msg;
-          }
-
-          return {
-            ...msg,
-            reactions,
-          };
-        })
-      );
-    });
+    socket.on(
+      "reactionUpdate",
+      ({ messageId, reactions }) => {
+        setMessages((prev) =>
+          reconcileReactionUpdate(
+            prev,
+            messageId,
+            reactions
+          )
+        );
+      }
+    );
 
     return () => {
       socket.off("newMessage");
