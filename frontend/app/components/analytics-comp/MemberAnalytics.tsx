@@ -1,5 +1,5 @@
 "use client";
-
+import { useMemo } from "react";
 import type { MemberPerformance } from "./PerformanceSummary";
 
 type MemberAnalyticsProps = {
