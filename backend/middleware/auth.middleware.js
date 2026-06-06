@@ -12,6 +12,25 @@ function extractBearerToken(authHeader) {
   return authHeader.split(" ")[1];
 }
 
+async function resolveUserSession(token) {
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser(token);
+
+  return {
+    user,
+    error,
+  };
+}
+
+function isAuthenticatedUser(
+  user,
+  error
+) {
+  return !error && !!user;
+}
+
 export const authenticateUser = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
@@ -25,11 +44,16 @@ export const authenticateUser = async (req, res, next) => {
     }
 
     const {
-      data: { user },
+      user,
       error,
-    } = await supabase.auth.getUser(token);
+    } = await resolveUserSession(token);
 
-    if (error || !user) {
+    if (
+      !isAuthenticatedUser(
+        user,
+        error
+      )
+    ) {
       return res.status(401).json({
         error: "Invalid token",
       });
@@ -39,7 +63,10 @@ export const authenticateUser = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error("Authentication middleware error:", error);
+    console.error(
+      "Authentication middleware error:",
+      error
+    );
 
     return res.status(500).json({
       error: "Internal server error",
