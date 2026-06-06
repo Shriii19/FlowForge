@@ -6,9 +6,7 @@ import { validateMessage } from "../middleware/validation.middleware.js";
 
 const router = express.Router();
 
-router.get("/", getMessages);
-
-router.post("/", authenticateUser, sendMessage);
-router.post("/", validateMessage, sendMessage);
+router.get("/", authenticateUser, getMessages);
+router.post("/", authenticateUser, validateMessage, sendMessage);
 
 export default router;

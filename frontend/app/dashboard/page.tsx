@@ -19,6 +19,57 @@ import {
   YAxis,
 } from "recharts";
 
+function buildChartData(
+  filter: string
+) {
+  if (filter === "This Week") {
+    return [
+      { name: "Mon", value: 10 },
+      { name: "Tue", value: 25 },
+      { name: "Wed", value: 18 },
+      { name: "Thu", value: 40 },
+      { name: "Fri", value: 32 },
+      { name: "Sat", value: 50 },
+      { name: "Sun", value: 45 },
+    ];
+  }
+
+  return [
+    { name: "Week 1", value: 20 },
+    { name: "Week 2", value: 35 },
+    { name: "Week 3", value: 50 },
+    { name: "Week 4", value: 70 },
+  ];
+}
+
+function buildDashboardMetrics() {
+  return [
+    {
+      title: "Velocity",
+      value: "—",
+      icon: TrendingUp,
+    },
+    {
+      title: "Deploys",
+      value: "—",
+      icon: Rocket,
+    },
+    {
+      title: "Incidents",
+      value: "—",
+      icon: AlertTriangle,
+    },
+  ];
+}
+
+function buildProjectInsights() {
+  return [
+    "✔ 12 tasks completed this week",
+    "✔ 3 projects ahead of schedule",
+    "⚠ 1 project needs attention",
+  ];
+}
+
 export default function Dashboard() {
   const [filter, setFilter] = useState("This Month");
   const [mounted, setMounted] = useState(false);
@@ -46,28 +97,10 @@ export default function Dashboard() {
 
   // ✅ Dynamic chart data based on filter
   const chartData =
-    filter === "This Week"
-      ? [
-          { name: "Mon", value: 10 },
-          { name: "Tue", value: 25 },
-          { name: "Wed", value: 18 },
-          { name: "Thu", value: 40 },
-          { name: "Fri", value: 32 },
-          { name: "Sat", value: 50 },
-          { name: "Sun", value: 45 },
-        ]
-      : [
-          { name: "Week 1", value: 20 },
-          { name: "Week 2", value: 35 },
-          { name: "Week 3", value: 50 },
-          { name: "Week 4", value: 70 },
-        ];
+    buildChartData(filter);
 
-  const stats = [
-    { title: "Velocity", value: "—", icon: TrendingUp },
-    { title: "Deploys", value: "—", icon: Rocket },
-    { title: "Incidents", value: "—", icon: AlertTriangle },
-  ];
+  const stats =
+    buildDashboardMetrics();
 
   const [team, setTeam] = useState<{ name: string; email: string }[]>([]);
   const [teamLoading, setTeamLoading] = useState(true);
@@ -278,9 +311,13 @@ export default function Dashboard() {
               </h3>
 
               <div className="mt-4 space-y-3 text-sm text-slate-600">
-                <p>✔ 12 tasks completed this week</p>
-                <p>✔ 3 projects ahead of schedule</p>
-                <p>⚠ 1 project needs attention</p>
+                {buildProjectInsights().map(
+                  (insight) => (
+                    <p key={insight}>
+                      {insight}
+                    </p>
+                  )
+                )}
               </div>
 
               <Link
