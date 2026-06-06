@@ -1,18 +1,13 @@
 "use client";
 
+import { useMemo } from "react";
 import { usePathname } from "next/navigation";
 
 import CommandPalette from "./CommandPalette";
 import Sidebar from "./Sidebar";
 import TopNavbar from "./TopNavbar";
 
-export default function AppShell({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const pathname = usePathname();
-
+function getLayoutState(pathname: string | null) {
   const isPublicRoute =
     pathname === "/" ||
     pathname === "/login" ||
@@ -24,10 +19,34 @@ export default function AppShell({
   const hideSidebar =
     isPublicRoute || isInsightsRoute;
 
-  // Insights pages manage their own spacing
   const mainClass = hideSidebar
     ? "min-w-0 flex-1 overflow-x-hidden"
     : "min-w-0 flex-1 overflow-x-hidden p-6";
+
+  return {
+    isPublicRoute,
+    isInsightsRoute,
+    hideSidebar,
+    mainClass,
+  };
+}
+
+
+export default function AppShell({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const pathname = usePathname();
+
+  const {
+    isPublicRoute,
+    hideSidebar,
+    mainClass,
+  } = useMemo(
+    () => getLayoutState(pathname),
+    [pathname]
+  );
 
   return (
     <div className="flex min-h-screen w-full bg-[#f5f7f2]">
