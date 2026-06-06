@@ -76,7 +76,7 @@ export const sendMessage = async (req, res) => {
       .insert([
         {
           text,
-          username: user.email || username,
+          username,
           image,
           audio,
           status: "sent",

@@ -5,57 +5,115 @@ const manualItems = [];
 
 function toRelativeTime(value) {
   if (!value) return "Just now";
+
   const createdAt = new Date(value).getTime();
-  const diffMinutes = Math.max(1, Math.floor((Date.now() - createdAt) / 60000));
+  const diffMinutes = Math.max(
+    1,
+    Math.floor((Date.now() - createdAt) / 60000)
+  );
+
   if (diffMinutes < 60) return `${diffMinutes} min ago`;
+
   const diffHours = Math.floor(diffMinutes / 60);
+
   if (diffHours < 24) return `${diffHours} hours ago`;
-  return new Date(value).toLocaleDateString("en", { month: "short", day: "numeric" });
+
+  return new Date(value).toLocaleDateString("en", {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function groupForDate(value) {
   if (!value) return "Today";
+
   const itemDate = new Date(value);
+
   const today = new Date();
+
   const yesterday = new Date();
   yesterday.setDate(today.getDate() - 1);
 
-  if (itemDate.toDateString() === today.toDateString()) return "Today";
-  if (itemDate.toDateString() === yesterday.toDateString()) return "Yesterday";
+  if (itemDate.toDateString() === today.toDateString()) {
+    return "Today";
+  }
+
+  if (itemDate.toDateString() === yesterday.toDateString()) {
+    return "Yesterday";
+  }
+
   return "Earlier";
+}
+
+function normalizeFeedItem({
+  id,
+  type,
+  actor,
+  action,
+  title,
+  body,
+  createdAt,
+  meta,
+  image = null,
+  progress = null,
+}) {
+  return {
+    id,
+    type,
+    actor,
+    action,
+    title,
+    body,
+    time: toRelativeTime(createdAt),
+    group: groupForDate(createdAt),
+    meta,
+    image,
+    progress,
+    createdAt,
+  };
 }
 
 function taskToFeedItem(task) {
   const isDone = task.status === "done";
-  return {
+
+  return normalizeFeedItem({
     id: `task-${task.id}`,
     type: isDone ? "milestone" : "code",
     actor: isDone ? "System" : "FlowForge",
     action: isDone ? "completed a task" : "updated a task",
     title: task.title || "Untitled task",
-    body: task.description || `Status changed to ${String(task.status || "todo").replace("_", " ")}.`,
-    time: toRelativeTime(task.created_at),
-    group: groupForDate(task.created_at),
+    body:
+      task.description ||
+      `Status changed to ${String(
+        task.status || "todo"
+      ).replace("_", " ")}.`,
+    createdAt: task.created_at,
     meta: isDone ? "Task completed" : "Task activity",
-    image: null,
-    progress: isDone ? 100 : task.status === "in_progress" ? 65 : 20,
-  };
+    progress:
+      isDone
+        ? 100
+        : task.status === "in_progress"
+        ? 65
+        : 20,
+  });
 }
 
 function messageToFeedItem(message) {
-  return {
+  return normalizeFeedItem({
     id: `message-${message.id}`,
     type: "discussion",
     actor: message.username || "Team member",
     action: "shared an update",
     title: "Team discussion",
     body: message.text || "Shared an attachment.",
-    time: toRelativeTime(message.created_at),
-    group: groupForDate(message.created_at),
+    createdAt: message.created_at,
     meta: "Chat activity",
-    image: "https://i.pravatar.cc/96?u=" + encodeURIComponent(message.username || message.id),
-    progress: null,
-  };
+    image:
+      "https://i.pravatar.cc/96?u=" +
+      encodeURIComponent(
+        message.username || message.id
+      ),
+  });
 }
 
 function buildFeedItems(tasks = [], messages = []) {
@@ -68,8 +126,12 @@ function buildFeedItems(tasks = [], messages = []) {
 
 function sortFeedItems(items = []) {
   return [...items].sort((a, b) => {
-    const aTime = Date.parse(a.time || "") || 0;
-    const bTime = Date.parse(b.time || "") || 0;
+    const aTime =
+      Date.parse(a.createdAt || "") || 0;
+
+    const bTime =
+      Date.parse(b.createdAt || "") || 0;
+
     return bTime - aTime;
   });
 }
@@ -78,12 +140,32 @@ export const getFeedItems = async (req, res) => {
   const page = Number(req.query.page || 1);
   const limit = Number(req.query.limit || 20);
   const offset = (page - 1) * limit;
+
   try {
-    const [{ data: tasks, error: tasksError }, { data: messages, error: messagesError }] =
-      await Promise.all([
-        supabase.from("tasks").select("id,title,description,status,created_at").order("created_at", { ascending: false }).limit(50),
-        supabase.from("messages").select("id,username,text,created_at").order("created_at", { ascending: false }).limit(50),
-      ]);
+    const [
+      { data: tasks, error: tasksError },
+      { data: messages, error: messagesError },
+    ] = await Promise.all([
+      supabase
+        .from("tasks")
+        .select(
+          "id,title,description,status,created_at"
+        )
+        .order("created_at", {
+          ascending: false,
+        })
+        .limit(50),
+
+      supabase
+        .from("messages")
+        .select(
+          "id,username,text,created_at"
+        )
+        .order("created_at", {
+          ascending: false,
+        })
+        .limit(50),
+    ]);
 
     if (tasksError) throw tasksError;
     if (messagesError) throw messagesError;
@@ -103,37 +185,55 @@ export const getFeedItems = async (req, res) => {
         page,
         limit,
         total: aggregatedItems.length,
-        hasMore: offset + limit < aggregatedItems.length,
+        hasMore:
+          offset + limit <
+          aggregatedItems.length,
       },
     });
-      } catch (error) {
-        console.error("Error loading feed:", error);
-        res.status(500).json({ error: "Failed to load activity feed" });
-      }
-    };
+  } catch (error) {
+    console.error(
+      "Error loading feed:",
+      error
+    );
 
-export const createFeedItem = async (req, res) => {
-  const { title, body, type = "discussion" } = req.body || {};
+    res.status(500).json({
+      error: "Failed to load activity feed",
+    });
+  }
+};
+
+export const createFeedItem = async (
+  req,
+  res
+) => {
+  const {
+    title,
+    body,
+    type = "discussion",
+  } = req.body || {};
 
   if (!title || !body) {
-    return res.status(400).json({ error: "Title and body are required" });
+    return res.status(400).json({
+      error: "Title and body are required",
+    });
   }
 
-  const item = {
+  const item = normalizeFeedItem({
     id: `manual-${randomUUID()}`,
     type,
     actor: "You",
     action: "created an insight",
     title,
     body,
-    time: "Just now",
-    group: "Today",
+    createdAt: new Date().toISOString(),
     meta: "Manual insight",
-    image: null,
-    progress: null,
-  };
+  });
 
   manualItems.unshift(item);
-  req.app.get("io")?.emit("feed-created", item);
+
+  req.app
+    .get("io")
+    ?.emit("feed-created", item);
+
   res.status(201).json({ item });
 };
