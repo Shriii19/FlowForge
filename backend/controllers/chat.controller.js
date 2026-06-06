@@ -17,35 +17,17 @@ export const getMessages = async (req, res) => {
 
 export const sendMessage = async (req, res) => {
   try {
-    const { text, username, image, audio } = req.body;
+    const { text, image, audio } = req.body;
 
-    console.log("Incoming:", {
-      text,
-      username,
-      image,
-      audio,
-    });
-
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader?.startsWith("Bearer ")) {
-      return res.status(401).json({
-        error: "Authentication required",
-      });
-    }
-
-    const token = authHeader.split(" ")[1];
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
-      return res.status(403).json({
-        error: "Unauthorized user",
-      });
-    }
+    // Derive username from the authenticated session instead of trusting the
+    // request body. The route requires authenticateUser, so req.user is always
+    // set at this point. Accepting username from the body allowed any
+    // authenticated caller to impersonate a different user by supplying an
+    // arbitrary username value.
+    const username = req.user?.user_metadata?.username
+      || req.user?.user_metadata?.name
+      || req.user?.email
+      || "Anonymous";
 
     const validationError = validateMessagePayload({
       text,
@@ -64,7 +46,7 @@ export const sendMessage = async (req, res) => {
       .insert([
         {
           text,
-          username: user.email || username,
+          username,
           image,
           audio,
           status: "sent",
