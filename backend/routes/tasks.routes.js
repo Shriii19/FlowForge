@@ -8,14 +8,22 @@ import {
 } from "../controllers/tasks.controller.js";
 
 import { authenticateUser } from "../middleware/auth.middleware.js";
-import { validateTask } from "../middleware/validation.middleware.js";
 
 const router = express.Router();
+const protectedRouter = express.Router();
 
-router.get("/", authenticateUser, getTasks);
-router.post("/", authenticateUser, validateTask, createTask);
-router.patch("/:id", authenticateUser, validateTask, updateTaskStatus);
-router.patch("/:id/edit", authenticateUser, validateTask, updateTask);
-router.delete("/:id", authenticateUser, deleteTask);
+router.get("/", getTasks);
+
+/**
+* Protected task mutation routes
+ */
+protectedRouter.use(authenticateUser);
+
+protectedRouter.post("/", createTask);
+protectedRouter.patch("/:id", updateTaskStatus);
+protectedRouter.patch("/:id/edit", updateTask);
+protectedRouter.delete("/:id", deleteTask);
+
+router.use("/", protectedRouter);
 
 export default router;
