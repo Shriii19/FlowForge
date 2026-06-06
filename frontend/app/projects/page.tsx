@@ -17,6 +17,26 @@ type Project = {
   createdAt: string;
 };
 
+function filterProjects(
+  projects: Array<
+    Project & { searchText?: string }
+  >,
+  query: string
+) {
+  const normalizedQuery =
+    query.trim().toLowerCase();
+
+  if (!normalizedQuery) {
+    return projects;
+  }
+
+  return projects.filter((project) =>
+    project.searchText?.includes(
+      normalizedQuery
+    )
+  );
+}
+
 export default function ProjectsPage() {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
@@ -79,25 +99,29 @@ export default function ProjectsPage() {
 
     return () => subscription.unsubscribe();
   }, []);
-  const filteredProjects = useMemo(() => {
-    const query = debouncedSearchTerm.trim().toLowerCase();
 
-    if (!query) {
-      return projects;
-    }
+  const searchableProjects = useMemo(
+    () =>
+      projects.map((project) => ({
+        ...project,
+        searchText: [
+          project.name,
+          ...(project.tags || []),
+        ]
+          .join(" ")
+          .toLowerCase(),
+      })),
+    [projects]
+  );
 
-    return projects.filter((project) => {
-      const projectName = (project.name || "").toLowerCase();
-
-      return (
-        projectName.includes(query) ||
-        (project.tags &&
-          project.tags.some((tag: string) =>
-            tag.toLowerCase().includes(query)
-          ))
-      );
-    });
-  }, [projects, debouncedSearchTerm]);
+  const filteredProjects = useMemo(
+    () =>
+      filterProjects(
+        searchableProjects,
+        debouncedSearchTerm
+      ),
+    [searchableProjects, debouncedSearchTerm]
+  );
 
   const hasProjects = filteredProjects.length > 0;
 
