@@ -263,6 +263,39 @@ export default function InsightsAnalyticsPage() {
 
       return a.name.localeCompare(b.name);
     });
+  const exportContributorComparisonCSV = () => {
+    if (contributorComparison.length === 0) {
+      return;
+    }
+
+    const rows = [
+      ["Contributor", sprintA, sprintB, "Change"],
+      ...contributorComparison.map((member) => [
+        member.name,
+        member.current,
+        member.previous,
+        member.change,
+      ]),
+    ];
+
+    const csvContent = rows.map((row) => row.join(",")).join("\n");
+
+    const blob = new Blob([csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `contributor-comparison-${sprintA}-vs-${sprintB}.csv`;
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    URL.revokeObjectURL(url);
+  };
 
   const selectedMember =
     members.find((member) => member.id === selectedMemberId) ?? members[0];
@@ -321,23 +354,40 @@ export default function InsightsAnalyticsPage() {
 
           <div className="rounded-2xl border border-outline-variant bg-white p-6">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Contributor Comparison</h3>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={exportContributorComparisonCSV}
+                  disabled={contributorComparison.length === 0}
+                  className="
+      rounded-lg
+      bg-primary
+      px-4 py-2
+      text-sm font-medium
+      text-white
+      disabled:cursor-not-allowed
+      disabled:opacity-50
+    "
+                >
+                  Export CSV
+                </button>
 
-              <select
-                value={comparisonSort}
-                onChange={(event) =>
-                  setComparisonSort(
-                    event.target.value as "improvement" | "decline" | "name",
-                  )
-                }
-                className="rounded-lg border px-3 py-2 text-sm"
-              >
-                <option value="improvement">Highest Improvement</option>
+                <select
+                  value={comparisonSort}
+                  onChange={(event) =>
+                    setComparisonSort(
+                      event.target.value as "improvement" | "decline" | "name",
+                    )
+                  }
+                  className="rounded-lg border px-3 py-2 text-sm"
+                >
+                  <option value="improvement">Highest Improvement</option>
 
-                <option value="decline">Highest Decline</option>
+                  <option value="decline">Highest Decline</option>
 
-                <option value="name">Name</option>
-              </select>
+                  <option value="name">Name</option>
+                </select>
+              </div>
+
             </div>
 
             <div className="mt-4 overflow-x-auto">
