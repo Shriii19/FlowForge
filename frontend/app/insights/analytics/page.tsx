@@ -13,6 +13,16 @@ import SprintLeaderboard, {
 } from "@/app/components/analytics-comp/SprintLeaderboard";
 import AnalyticsMobileNav from "@/app/components/analytics-comp/AnalyticsMobileNav";
 import TrendMetricCard from "@/app/components/analytics-comp/TrendMetricCard";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+} from "recharts";
 
 const sprintData: Record<string, MemberPerformance[]> = {
   "Sprint 42": [
@@ -234,6 +244,18 @@ export default function InsightsAnalyticsPage() {
     ),
     reviews: compareMembers.reduce((sum, member) => sum + member.reviews, 0),
   };
+  const sprintComparisonChartData = [
+    {
+      metric: "Completed",
+      [sprintA]: sprintAMetrics.completed,
+      [sprintB]: sprintBMetrics.completed,
+    },
+    {
+      metric: "Reviews",
+      [sprintA]: sprintAMetrics.reviews,
+      [sprintB]: sprintBMetrics.reviews,
+    },
+  ];
   const contributorComparison = members
     .map((member) => {
       const previousMember = compareMembers.find(
@@ -252,6 +274,7 @@ export default function InsightsAnalyticsPage() {
         change,
       };
     })
+
     .sort((a, b) => {
       if (comparisonSort === "improvement") {
         return b.change - a.change;
@@ -263,6 +286,11 @@ export default function InsightsAnalyticsPage() {
 
       return a.name.localeCompare(b.name);
     });
+  const contributorChartData = contributorComparison.map((member) => ({
+    name: member.name,
+    change: member.change,
+  }));
+
   const exportContributorComparisonCSV = () => {
     if (contributorComparison.length === 0) {
       return;
@@ -335,20 +363,44 @@ export default function InsightsAnalyticsPage() {
             </div>
           )}
           <div className="rounded-2xl border border-outline-variant bg-white p-6">
-            <h3 className="text-lg font-semibold">Sprint Comparison</h3>
+            <h3 className="text-lg font-semibold">
+              Sprint Performance Comparison
+            </h3>
+            <p className="mt-1 text-sm text-gray-500">
+              Compare completed tasks and reviews across selected sprints.
+            </p>
 
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <TrendMetricCard
-                label="Completed Tasks"
-                current={sprintAMetrics.completed}
-                previous={sprintBMetrics.completed}
-              />
+            <div className="mt-6 h-80">
+              {sprintComparisonChartData.length === 0 ? (
+                <div className="flex h-full items-center justify-center text-gray-500">
+                  No sprint comparison data available.
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={sprintComparisonChartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
 
-              <TrendMetricCard
-                label="Reviews"
-                current={sprintAMetrics.reviews}
-                previous={sprintBMetrics.reviews}
-              />
+                    <XAxis dataKey="metric" />
+
+                    <YAxis />
+
+                    <Tooltip />
+                    <Legend />
+
+                    <Bar
+                      dataKey={sprintA}
+                      fill="#0f766e"
+                      radius={[4, 4, 0, 0]}
+                    />
+
+                    <Bar
+                      dataKey={sprintB}
+                      fill="#94a3b8"
+                      radius={[4, 4, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </div>
 
@@ -387,7 +439,6 @@ export default function InsightsAnalyticsPage() {
                   <option value="name">Name</option>
                 </select>
               </div>
-
             </div>
 
             <div className="mt-4 overflow-x-auto">
@@ -452,7 +503,27 @@ export default function InsightsAnalyticsPage() {
               </table>
             </div>
           </div>
+          <div className="rounded-2xl border border-outline-variant bg-white p-6">
+            <h3 className="text-lg font-semibold">
+              Contributor Performance Changes
+            </h3>
 
+            <div className="mt-6 h-96">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={contributorChartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+
+                  <XAxis dataKey="name" />
+
+                  <YAxis />
+
+                  <Tooltip />
+
+                  <Bar dataKey="change" fill="#0f766e" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
           <PerformanceSummary
             members={members}
             metric={metric}
