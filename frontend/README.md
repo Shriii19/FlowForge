@@ -1,12 +1,42 @@
-# 🖥️ FlowForge — Frontend
-
+🖥️ FlowForge — Frontend
 > Next.js 16 frontend for the FlowForge real-time collaboration platform.
+
+![License](https://img.shields.io/github/license/flowforge/flowforge)
+![Contributors](https://img.shields.io/github/contributors/flowforge/flowforge)
+![Build Status](https://img.shields.io/github/actions/workflow/status/flowforge/flowforge/ci.yml)
+
+---
+
+## 📋 Table of Contents
+- [Overview](#-overview)
+- [Tech Stack](#-tech-stack)
+- [Folder Structure](#-folder-structure)
+- [Getting Started](#-getting-started)
+- [App Routes](#-app-routes)
+- [Environment Variables](#-environment-variables-reference)
+- [Linting](#-linting)
+- [Development Status](#-development-status)
+- [Deployment](#-deployment)
+- [License](#-license)
 
 ---
 
 ## 📌 Overview
+The FlowForge frontend is built with **Next.js App Router**, **TypeScript**, and **Tailwind CSS**.  
+It provides the user interface for project management, real-time chat, and team collaboration features.
 
-The FlowForge frontend is built with **Next.js App Router**, **TypeScript**, and **Tailwind CSS**. It provides the user interface for project management, real-time chat, and team collaboration features.
+---
+
+## 🛠️ Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| Framework | Next.js 16 (App Router) |
+| Language | TypeScript |
+| Styling | Tailwind CSS 4 |
+| Icons | Lucide React |
+| Auth & DB | Supabase |
+| Linting | ESLint (Next.js config) |
 
 ---
 
