@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { supabase } from "@/app/lib/supabase";
+import { signupSchema } from "@/lib/validations/auth";
 
 function generatePassword(length = 14): string {
   const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -45,6 +46,9 @@ export default function Signup() {
   const [copied, setCopied] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+  const [emailError, setEmailError] = useState("");
+  const [usernameError, setUsernameError] = useState("");
+  const [passwordStrength, setPasswordStrength] = useState<"" | "weak" | "medium" | "strong">("");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -138,6 +142,26 @@ export default function Signup() {
     }
   };
 
+  const validateEmailField = () => {
+    const result = signupSchema.shape.email.safeParse(email);
+    setEmailError(result.success ? "" : (result.error?.errors?.[0]?.message ?? "Invalid email"));
+  };
+
+  const validateUsernameField = () => {
+    const result = signupSchema.shape.username.safeParse(username);
+    setUsernameError(result.success ? "" : (result.error?.errors?.[0]?.message ?? "Invalid username"));
+  };
+
+  const getPasswordStrength = (pwd: string): "" | "weak" | "medium" | "strong" => {
+    if (!pwd) return "";
+    const hasUpper = /[A-Z]/.test(pwd);
+    const hasLower = /[a-z]/.test(pwd);
+    const hasNumber = /[0-9]/.test(pwd);
+    if (pwd.length >= 10 && hasUpper && hasLower && hasNumber) return "strong";
+    if (pwd.length >= 8) return "medium";
+    return "weak";
+  };
+
   const inputClass =
     "w-full p-2 mb-3 bg-zinc-800 rounded border border-zinc-700 focus:outline-none focus:border-indigo-500";
 
@@ -157,20 +181,28 @@ export default function Signup() {
 
         {/* Username */}
         <input
-          className={inputClass}
+          className={`w-full p-2 bg-zinc-800 rounded border ${usernameError ? "border-red-500 mb-1" : "border-zinc-700 mb-3"} focus:outline-none focus:border-indigo-500`}
           placeholder="Username *"
           value={username}
-          onChange={(e) => setUsername(e.target.value.replace(/\s/g, ""))}
+          onChange={(e) => { setUsername(e.target.value.replace(/\s/g, "")); setUsernameError(""); }}
+          onBlur={validateUsernameField}
         />
+        {usernameError && (
+          <p className="text-red-400 text-xs mb-3">{usernameError}</p>
+        )}
 
         {/* Email */}
         <input
           type="email"
-          className={inputClass}
+          className={`w-full p-2 bg-zinc-800 rounded border ${emailError ? "border-red-500 mb-1" : "border-zinc-700 mb-3"} focus:outline-none focus:border-indigo-500`}
           placeholder="Email *"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => { setEmail(e.target.value); setEmailError(""); }}
+          onBlur={validateEmailField}
         />
+        {emailError && (
+          <p className="text-red-400 text-xs mb-3">{emailError}</p>
+        )}
 
         {/* Mobile */}
         <input
@@ -208,7 +240,10 @@ export default function Signup() {
             className="w-full p-2 pr-16 bg-zinc-800 rounded border border-zinc-700 focus:outline-none focus:border-indigo-500"
             placeholder="Password *"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              setPasswordStrength(getPasswordStrength(e.target.value));
+            }}
           />
           <button
             type="button"
@@ -218,6 +253,20 @@ export default function Signup() {
             {showPassword ? "Hide" : "Show"}
           </button>
         </div>
+
+        {/* Password strength indicator */}
+        {passwordStrength && (
+          <div className="flex items-center gap-2 mb-3 -mt-1">
+            <div className="flex gap-1">
+              <div className={`h-1 w-8 rounded ${passwordStrength === "weak" ? "bg-red-500" : passwordStrength === "medium" ? "bg-yellow-400" : "bg-green-500"}`} />
+              <div className={`h-1 w-8 rounded ${passwordStrength === "medium" || passwordStrength === "strong" ? (passwordStrength === "medium" ? "bg-yellow-400" : "bg-green-500") : "bg-zinc-600"}`} />
+              <div className={`h-1 w-8 rounded ${passwordStrength === "strong" ? "bg-green-500" : "bg-zinc-600"}`} />
+            </div>
+            <span className={`text-xs ${passwordStrength === "weak" ? "text-red-400" : passwordStrength === "medium" ? "text-yellow-400" : "text-green-400"}`}>
+              {passwordStrength === "weak" ? "Weak" : passwordStrength === "medium" ? "Medium" : "Strong"}
+            </span>
+          </div>
+        )}
 
         {/* Confirm Password */}
         <div className="relative mb-4">
