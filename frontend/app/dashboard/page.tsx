@@ -132,6 +132,37 @@ export default function Dashboard() {
     fetchTeamMembers();
   }, []);
 
+  const [activity, setActivity] = useState<{ text: string; time: string }[]>([]);
+  const [activityLoading, setActivityLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchActivity = async () => {
+      try {
+        if (!supabase) { setActivityLoading(false); return; }
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) { setActivityLoading(false); return; }
+        const { data, error } = await supabase
+          .from("projects")
+          .select("name, created_at")
+          .order("created_at", { ascending: false })
+          .limit(5);
+        if (!error && data) {
+          setActivity(
+            data.map((p) => ({
+              text: `Project "${p.name}" created`,
+              time: new Date(p.created_at).toLocaleDateString(),
+            }))
+          );
+        }
+      } catch (err) {
+        console.error("Failed to fetch activity:", err);
+      } finally {
+        setActivityLoading(false);
+      }
+    };
+    fetchActivity();
+  }, []);
+
   const getInitials = (name: string) =>
     name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 
@@ -432,11 +463,39 @@ export default function Dashboard() {
         <div className="grid gap-6 md:grid-cols-2">
           <div className="bg-white p-6 rounded-2xl border shadow-sm">
             <h2 className="text-lg font-semibold mb-4">Recent Activity</h2>
-            <ul className="text-sm text-slate-600 space-y-2">
-              <li>✔ New sprint created</li>
-              <li>✔ Task updated in Project Alpha</li>
-              <li>✔ Team member joined workspace</li>
-            </ul>
+            {activityLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="animate-pulse flex items-center gap-3">
+                    <div className="w-4 h-4 rounded-full bg-slate-200" />
+                    <div className="h-3 bg-slate-200 rounded w-3/4" />
+                  </div>
+                ))}
+              </div>
+            ) : activity.length > 0 ? (
+              <ul className="text-sm text-slate-600 space-y-3">
+                {activity.map((item, index) => (
+                  <li key={index} className="flex items-start justify-between gap-2">
+                    <span className="flex items-center gap-2">
+                      <span className="text-emerald-500">✔</span>
+                      {item.text}
+                    </span>
+                    <span className="text-xs text-slate-400 whitespace-nowrap">{item.time}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-6 text-center">
+                <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center mb-3">
+                  <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <p className="text-sm font-medium text-slate-700">No recent activity yet</p>
+                <p className="text-xs text-slate-400 mt-1">Your project activity will appear here</p>
+              </div>
+            )}
           </div>
 
           <div className="bg-slate-900 text-white p-6 rounded-2xl shadow-sm">
