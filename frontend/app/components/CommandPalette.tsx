@@ -21,11 +21,78 @@ function buildSearchableCommands(
   }));
 }
 
+function calculateCommandScore(
+  command: ReturnType<
+    typeof buildSearchableCommands
+  >[number],
+  query: string,
+  recentCommands: typeof commands
+) {
+  const normalizedQuery =
+    query.toLowerCase().trim();
+
+  if (!normalizedQuery) {
+    return 0;
+  }
+
+  let score = 0;
+
+  if (
+    command.searchLabel ===
+    normalizedQuery
+  ) {
+    score += 100;
+  }
+
+  if (
+    command.searchLabel.startsWith(
+      normalizedQuery
+    )
+  ) {
+    score += 50;
+  }
+
+  if (
+    command.searchLabel.includes(
+      normalizedQuery
+    )
+  ) {
+    score += 25;
+  }
+
+  const queryWords =
+    normalizedQuery.split(" ");
+
+  queryWords.forEach((word) => {
+    if (
+      command.searchLabel.includes(word)
+    ) {
+      score += 10;
+    }
+  });
+
+  const recentIndex =
+    recentCommands.findIndex(
+      (item) => item.id === command.id
+    );
+
+  if (recentIndex !== -1) {
+    score +=
+      Math.max(
+        0,
+        10 - recentIndex
+      );
+  }
+
+  return score;
+}
+
 function filterCommands(
   commandList: ReturnType<
     typeof buildSearchableCommands
   >,
-  query: string
+  query: string,
+  recentCommands: typeof commands
 ) {
   const normalizedQuery =
     query.trim().toLowerCase();
@@ -34,13 +101,25 @@ function filterCommands(
     return commandList;
   }
 
-  return commandList.filter(
-    (command) =>
-      command.searchLabel.includes(
-        normalizedQuery
-      )
-  );
+  return commandList
+    .map((command) => ({
+      ...command,
+      score:
+        calculateCommandScore(
+          command,
+          normalizedQuery,
+          recentCommands
+        ),
+    }))
+    .filter(
+      (command) => command.score > 0
+    )
+    .sort(
+      (a, b) =>
+        b.score - a.score
+    );
 }
+
 
 function buildRecentCommands(
   command: (typeof commands)[number],
@@ -123,9 +202,14 @@ export default function CommandPalette() {
       () =>
         filterCommands(
           searchableCommands,
-          query
+          query,
+          recentCommands
         ),
-      [searchableCommands, query]
+      [
+        searchableCommands,
+        query,
+        recentCommands,
+      ]
     );
 
   useEffect(() => {
