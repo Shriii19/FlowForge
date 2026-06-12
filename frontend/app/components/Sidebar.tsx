@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   FolderKanban,
@@ -14,11 +15,14 @@ function getNavigationState(
   pathname: string,
   path: string
 ) {
+  const isActive =
+    pathname === path ||
+    pathname.startsWith(`${path}/`);
+
   return {
-    isActive:
-      pathname === path,
+    isActive,
     className: `flex items-center gap-2 rounded-xl px-3 py-2 transition ${
-      pathname === path
+      isActive
         ? "bg-teal-700 text-white shadow-sm"
         : "text-slate-700 hover:bg-slate-200"
     }`,
@@ -27,6 +31,34 @@ function getNavigationState(
 
 export default function Sidebar() {
   const pathname = usePathname();
+
+  const [activePath, setActivePath] =
+    useState(pathname);
+
+  useEffect(() => {
+    setActivePath(pathname);
+
+    if (pathname) {
+      sessionStorage.setItem(
+        "sidebar-active-route",
+        pathname
+      );
+    }
+  }, [pathname]);
+
+  useEffect(() => {
+    const persistedPath =
+      sessionStorage.getItem(
+        "sidebar-active-route"
+      );
+
+    if (
+      persistedPath &&
+      !activePath
+    ) {
+      setActivePath(persistedPath);
+    }
+  }, []);
 
   const navItems = [
     {
@@ -74,7 +106,7 @@ export default function Sidebar() {
 
           const navigationState =
             getNavigationState(
-              pathname,
+              activePath,
               item.href
             );
 
