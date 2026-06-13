@@ -24,6 +24,15 @@ export function useAuth() {
   const router = useRouter();
   const mountedRef = useRef(true);
 
+  if (!supabase) {
+    return {
+      user: null,
+      loading: false,
+      status: "error" as const,
+      isAuthenticated: false,
+    };
+  }
+
   const clearAuthState = () => {
     if (!mountedRef.current) return;
 
@@ -39,7 +48,7 @@ export function useAuth() {
       const {
         data: { session },
         error,
-      } = await supabase.auth.getSession();
+      } = await supabase!.auth.getSession();
 
       if (error) throw error;
 
@@ -65,7 +74,7 @@ export function useAuth() {
     }
 
     try {
-      const { data, error } = await supabase.auth.getUser();
+      const { data, error } = await supabase!.auth.getUser();
 
       if (error || !data.user) {
         return false;
@@ -93,7 +102,7 @@ export function useAuth() {
         if (!session || !isValid) {
           clearAuthState();
 
-          await supabase.auth.signOut();
+          await supabase!.auth.signOut();
 
           router.replace("/login");
           return;
@@ -119,7 +128,7 @@ export function useAuth() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(
+    } = supabase!.auth.onAuthStateChange(
       async (event: AuthChangeEvent, session) => {
         if (!mountedRef.current) return;
 
