@@ -2,6 +2,44 @@ import supabase from "../config/db.js";
 
 const fallbackContributors = ["Alex Rivera", "Casey Morgan", "Jordan Smith", "Riley Lee"];
 
+function normalizeTasks(tasks = []) {
+  return tasks.filter(
+    (task) =>
+      task &&
+      typeof task === "object" &&
+      typeof task.status === "string"
+  );
+}
+
+function normalizeMessages(messages = []) {
+  return messages.filter(
+    (message) =>
+      message &&
+      typeof message === "object"
+  );
+}
+
+function buildInsightConfidence(
+  tasks,
+  messages
+) {
+  const datasetSize =
+    tasks.length + messages.length;
+
+  if (datasetSize >= 100) return "high";
+  if (datasetSize >= 25) return "medium";
+
+  return "low";
+}
+
+function buildFallbackInsights() {
+  return {
+    confidence: "low",
+    dataQuality: "partial",
+    normalized: true,
+  };
+}
+
 function relativeTime(value) {
   if (!value) return "Recently";
   const timestamp = new Date(value).getTime();
@@ -92,18 +130,38 @@ function countByStatus(tasks = []) {
 }
 
 async function loadSourceData() {
-  const [{ data: tasks, error: tasksError }, { data: messages, error: messagesError }] =
-    await Promise.all([
-      supabase.from("tasks").select("*"),
-      supabase.from("messages").select("*"),
-    ]);
+  const [
+    { data: tasks, error: tasksError },
+    { data: messages, error: messagesError },
+  ] = await Promise.all([
+    supabase.from("tasks").select("*"),
+    supabase.from("messages").select("*"),
+  ]);
 
   if (tasksError) throw tasksError;
   if (messagesError) throw messagesError;
 
+  const normalizedTasks =
+    normalizeTasks(tasks || []);
+
+  const normalizedMessages =
+    normalizeMessages(messages || []);
+
   return {
-    tasks: tasks || [],
-    messages: messages || [],
+    tasks: normalizedTasks,
+    messages: normalizedMessages,
+    metadata: {
+      confidence:
+        buildInsightConfidence(
+          normalizedTasks,
+          normalizedMessages
+        ),
+      dataQuality:
+        normalizedTasks.length ||
+        normalizedMessages.length
+          ? "complete"
+          : "partial",
+    },
   };
 }
 
@@ -133,7 +191,11 @@ function getTopContributors(messageCount) {
 
 export const getOverviewInsights = async (req, res) => {
   try {
-    const { tasks, messages } = await loadSourceData();
+    const {
+      tasks,
+      messages,
+      metadata,
+    } = await loadSourceData();
     const counts = countByStatus(tasks);
     const overviewMetrics =
       buildOverviewMetrics(
@@ -146,6 +208,11 @@ export const getOverviewInsights = async (req, res) => {
 
     res.status(200).json({
       projectName: "Project Alpha",
+      confidence:
+        metadata.confidence,
+      dataQuality:
+        metadata.dataQuality,
+      normalized: true,
       ...overviewMetrics,
       heatmap: buildHeatmap(tasks, messages),
       recentActivity,
@@ -159,12 +226,18 @@ export const getOverviewInsights = async (req, res) => {
 
 export const getTaskInsights = async (req, res) => {
   try {
-    const { tasks } = await loadSourceData();
+    const {
+      tasks,
+      metadata,
+    } = await loadSourceData();
     const counts = countByStatus(tasks);
     const summary = buildTaskSummary(
       tasks,
       counts
     );
+
+    const total =
+      Math.max(tasks.length, 1);
 
     const stages = [
       { label: "Todo", value: Number((counts.todo * 1.2 + 1).toFixed(1)), active: counts.todo > 0 },
@@ -191,8 +264,17 @@ export const getTaskInsights = async (req, res) => {
       transition: relativeTime(task.created_at),
     }));
 
+    const fallbackInsights =
+      buildFallbackInsights();
+
     res.status(200).json({
       summary,
+      confidence:
+        metadata.confidence,
+      dataQuality:
+        metadata.dataQuality,
+      normalized:
+        fallbackInsights.normalized,
       stages,
       flowNodes,
       history,
