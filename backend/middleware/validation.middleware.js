@@ -11,6 +11,22 @@ function sanitizeText(value = "") {
   return xss(String(value).trim());
 }
 
+function createValidationError(
+  field,
+  message,
+  code = "VALIDATION_ERROR"
+) {
+  return {
+    success: false,
+    error: {
+      code,
+      field,
+      message,
+      timestamp: Date.now(),
+    },
+  };
+}
+
 function validateTaskStatus(
   status
 ) {
@@ -54,10 +70,12 @@ export function validateTask(
       }
     )
   ) {
-    return res.status(400).json({
-      error:
-        "Task title must be between 1 and 120 characters",
-    });
+    return res.status(400).json(
+      createValidationError(
+        "title",
+        "Task title must be between 1 and 120 characters"
+      )
+    );
   }
 
   if (
@@ -67,10 +85,12 @@ export function validateTask(
       { max: 1000 }
     )
   ) {
-    return res.status(400).json({
-      error:
-        "Description too long",
-    });
+    return res.status(400).json(
+      createValidationError(
+        "description",
+        "Description too long"
+      )
+    );
   }
 
   if (
@@ -78,10 +98,12 @@ export function validateTask(
       status
     )
   ) {
-    return res.status(400).json({
-      error:
-        "Invalid task status",
-    });
+    return res.status(400).json(
+      createValidationError(
+        "status",
+        "Invalid task status"
+      )
+    );
   }
 
   if (
@@ -89,10 +111,12 @@ export function validateTask(
       position
     )
   ) {
-    return res.status(400).json({
-      error:
-        "Invalid task position",
-    });
+    return res.status(400).json(
+      createValidationError(
+        "position",
+        "Invalid task position"
+      )
+    );
   }
 
   req.body.title =
@@ -126,10 +150,12 @@ export function validateMessage(
       }
     )
   ) {
-    return res.status(400).json({
-      error:
-        "Invalid username length",
-    });
+    return res.status(400).json(
+      createValidationError(
+        "username",
+        "Invalid username length"
+      )
+    );
   }
 
   if (
@@ -139,10 +165,12 @@ export function validateMessage(
       { max: 2000 }
     )
   ) {
-    return res.status(400).json({
-      error:
-        "Message too long",
-    });
+    return res.status(400).json(
+      createValidationError(
+        "text",
+        "Message too long"
+      )
+    );
   }
 
   req.body.username =
@@ -177,9 +205,12 @@ export function validateFeedItem(
       }
     )
   ) {
-    return res.status(400).json({
-      error: "Invalid title",
-    });
+    return res.status(400).json(
+      createValidationError(
+        "title",
+        "Invalid title"
+      )
+    );
   }
 
   if (
@@ -192,9 +223,12 @@ export function validateFeedItem(
       }
     )
   ) {
-    return res.status(400).json({
-      error: "Invalid body",
-    });
+    return res.status(400).json(
+      createValidationError(
+        "body",
+        "Invalid body"
+      )
+    );
   }
 
   const allowedTypes = [
@@ -209,10 +243,12 @@ export function validateFeedItem(
       type
     )
   ) {
-    return res.status(400).json({
-      error:
-        "Invalid feed type",
-    });
+    return res.status(400).json(
+      createValidationError(
+        "type",
+        "Invalid feed type"
+      )
+    );
   }
 
   req.body.title =
