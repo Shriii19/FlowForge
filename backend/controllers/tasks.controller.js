@@ -12,6 +12,46 @@ async function verifyAuthenticatedRequest(req, res) {
   return true;
 }
 
+function buildTaskSyncMetadata() {
+  return {
+    synchronizedAt:
+      new Date().toISOString(),
+  };
+}
+
+function reconcileTaskUpdate(
+  existingTask,
+  updates
+) {
+  return {
+    ...existingTask,
+    ...updates,
+    ...buildTaskSyncMetadata(),
+  };
+}
+
+function isStaleTaskUpdate(
+  existingTask,
+  incomingTimestamp
+) {
+  if (
+    !existingTask?.updated_at ||
+    !incomingTimestamp
+  ) {
+    return false;
+  }
+
+  return (
+    new Date(
+      incomingTimestamp
+    ).getTime() <
+    new Date(
+      existingTask.updated_at
+    ).getTime()
+  );
+}
+
+
 // Get all tasks
 export const getTasks = async (req, res) => {
   try {
@@ -82,15 +122,32 @@ export const updateTaskStatus = async (req, res) => {
     }
     const { status, position } = req.body;
 
+
     const { data: existingTask } = await supabase
       .from("tasks")
-      .select("id")
+      .select("*")
       .eq("id", id)
       .single();
 
     if (!existingTask) {
       return res.status(404).json({
         error: "Task not found",
+      });
+    }
+
+    const {
+      synchronizedAt,
+    } = req.body;
+
+    if (
+      isStaleTaskUpdate(
+        existingTask,
+        synchronizedAt
+      )
+    ) {
+      return res.status(409).json({
+        error:
+          "Stale task update detected",
       });
     }
 
@@ -113,7 +170,15 @@ export const updateTaskStatus = async (req, res) => {
 
     const { data, error } = await supabase
       .from("tasks")
-      .update({ status, position })
+      .update(
+        reconcileTaskUpdate(
+          existingTask,
+          {
+            status,
+            position,
+          }
+        )
+      )
       .eq("id", id)
       .select();
 
@@ -123,6 +188,15 @@ export const updateTaskStatus = async (req, res) => {
       return res.status(404).json({
         error: "Task not found",
       });
+    }
+
+    const io = req.app.get("io");
+
+    if (io && data[0]) {
+      io.emit(
+        "task-status-synchronized",
+        data[0]
+      );
     }
 
     res.status(200).json(data[0]);
@@ -143,7 +217,7 @@ export const updateTask = async (req, res) => {
     const { title, description, status } = req.body;
     const { data: existingTask } = await supabase
       .from("tasks")
-      .select("id")
+      .select("*")
       .eq("id", id)
       .single();
 
@@ -152,6 +226,23 @@ export const updateTask = async (req, res) => {
         error: "Task not found",
       });
     }
+
+    const {
+      synchronizedAt,
+    } = req.body;
+
+    if (
+      isStaleTaskUpdate(
+        existingTask,
+        synchronizedAt
+      )
+    ) {
+      return res.status(409).json({
+        error:
+          "Stale task update detected",
+      });
+    }
+    
     const updateFields = {};
 
     // Apply the same length limits as createTask so an authenticated user
@@ -194,7 +285,12 @@ export const updateTask = async (req, res) => {
     // Update task in database
     const { data, error } = await supabase
       .from("tasks")
-      .update(updateFields)
+      .update(
+        reconcileTaskUpdate(
+          existingTask,
+          updateFields
+        )
+      )
       .eq("id", id)
       .select();
 
