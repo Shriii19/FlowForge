@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/app/lib/supabase";
 
 type Notification = {
   id: number;
@@ -12,32 +13,7 @@ type Notification = {
   href: string;
 };
 
-const initialNotifications: Notification[] = [
-  {
-    id: 1,
-    title: "Task moved to Review",
-    description: "Landing page redesign moved to review stage.",
-    time: "2m ago",
-    unread: true,
-    href: "/projects",
-  },
-  {
-    id: 2,
-    title: "New chat message",
-    description: "Alex sent a new team message.",
-    time: "10m ago",
-    unread: true,
-    href: "/chat",
-  },
-  {
-    id: 3,
-    title: "Project created",
-    description: "FlowForge Mobile App project was created.",
-    time: "1h ago",
-    unread: false,
-    href: "/projects",
-  },
-];
+const initialNotifications: Notification[] = [];
 
 function markNotificationRead(
   notifications: Notification[],
@@ -89,10 +65,49 @@ export default function NotificationsPanel() {
       initialNotifications
     );
 
+  const [loading, setLoading] = useState(true);
+
   const panelRef =
     useRef<HTMLDivElement | null>(
       null
     );
+
+  // Fetch real notifications from Supabase projects table
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      try {
+        if (!supabase) { setLoading(false); return; }
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) { setLoading(false); return; }
+
+        const { data, error } = await supabase
+          .from("projects")
+          .select("id, name, created_at")
+          .order("created_at", { ascending: false })
+          .limit(5);
+
+        if (!error && data && data.length > 0) {
+          const realNotifications: Notification[] = data.map(
+            (project, index) => ({
+              id: index + 1,
+              title: "Project created",
+              description: `"${project.name}" was created.`,
+              time: new Date(project.created_at).toLocaleDateString(),
+              unread: index === 0,
+              href: "/projects",
+            })
+          );
+          setNotifications(realNotifications);
+        }
+      } catch (err) {
+        console.error("Failed to fetch notifications:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchNotifications();
+  }, []);
 
   useEffect(() => {
     function handleOutsideClick(
@@ -178,7 +193,7 @@ export default function NotificationsPanel() {
           notifications
         </span>
 
-        {unreadCount > 0 && (
+        {!loading && unreadCount > 0 && (
           <span
             className="
               absolute -right-1 -top-1
