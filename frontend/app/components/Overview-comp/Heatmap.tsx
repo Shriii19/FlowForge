@@ -1,3 +1,5 @@
+import { useMemo } from "react";
+
 const COLORS = [
   "bg-surface-container30",
   "bg-primary10",
@@ -11,9 +13,26 @@ type HeatmapProps = {
   values: number[];
 };
 
+type HeatmapStats = {
+  min: number;
+  max: number;
+  average: number;
+  total: number;
+};
+
+type HeatmapCell = {
+  value: number;
+  intensity: number;
+};
+
+type HeatmapDataset = {
+  cells: HeatmapCell[];
+  stats: HeatmapStats;
+};
+
 function calculateHeatmapStats(
   values: number[]
-) {
+): HeatmapStats {
   if (values.length === 0) {
     return {
       min: 0,
@@ -93,15 +112,71 @@ function buildHeatmapCells(
   );
 }
 
-export default function Heatmap({
-  values,
-}: HeatmapProps) {
-  const heatmapCells =
-    buildHeatmapCells(values);
+function buildHeatmapDataset(
+  values: number[]
+): HeatmapDataset {
+  const fallbackValues =
+    Array.from(
+      { length: 365 },
+      () => 0
+    );
+
+  const sourceValues =
+    values.length > 0
+      ? values
+      : fallbackValues;
 
   const stats =
     calculateHeatmapStats(
-      values
+      sourceValues
+    );
+
+  const cells =
+    sourceValues.map(
+      (value) => ({
+        value,
+        intensity:
+          normalizeValue(
+            value,
+            stats.min,
+            stats.max
+          ),
+      })
+    );
+
+  return {
+    cells,
+    stats,
+  };
+}
+
+export default function Heatmap({
+  values,
+}: HeatmapProps) {
+  const dataset =
+    useMemo(
+      () =>
+        buildHeatmapDataset(
+          values
+        ),
+      [values]
+    );
+
+  const heatmapCells =
+    dataset.cells;
+
+  const stats =
+    dataset.stats;
+
+  const legendCells =
+    useMemo(
+      () =>
+        COLORS.map(
+          (color) => ({
+            color,
+          })
+        ),
+      []
     );
 
   return (
@@ -137,8 +212,8 @@ export default function Heatmap({
             </span>
 
             <div className="flex gap-1">
-              {COLORS.map(
-                (color) => (
+              {legendCells.map(
+                ({ color }) => (
                   <div
                     key={color}
                     className={`heatmap-square ${color}`}
