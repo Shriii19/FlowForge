@@ -112,6 +112,52 @@ function shouldUpdateOnlineUsers(
   );
 }
 
+function saveChatSessionState(
+  username: string,
+  searchQuery: string,
+  filterType: string
+) {
+  localStorage.setItem(
+    "chat-session-state",
+    JSON.stringify({
+      username,
+      searchQuery,
+      filterType,
+      timestamp: Date.now(),
+    })
+  );
+}
+
+function restoreChatSessionState() {
+  const stored =
+    localStorage.getItem(
+      "chat-session-state"
+    );
+
+  if (!stored) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(stored);
+  } catch {
+    return null;
+  }
+}
+
+function isSessionStateValid(
+  timestamp?: number
+) {
+  if (!timestamp) {
+    return false;
+  }
+
+  return (
+    Date.now() - timestamp <
+    1000 * 60 * 60
+  );
+}
+
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -133,6 +179,11 @@ export default function ChatPage() {
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const [
+    sessionRecovered,
+    setSessionRecovered,
+  ] = useState(false);
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
@@ -145,6 +196,12 @@ export default function ChatPage() {
   const isAtBottomRef = useRef(true);
   const [unreadCount, setUnreadCount] = useState(0);
   const [visibleCount, setVisibleCount] = useState(100);
+
+  const sessionLifecycleRef =
+    useRef({
+      restoreCount: 0,
+      lastSavedAt: 0,
+    });
   
 
   //  SOCKET SETUP
@@ -251,6 +308,50 @@ socket.on("newMessage", (msg) => {
       socket.off("reactionUpdate");
     };
   }, []);
+
+  useEffect(() => {
+    const restored =
+      restoreChatSessionState();
+
+    if (
+      restored &&
+      isSessionStateValid(
+        restored.timestamp
+      )
+    ) {
+      setUsername(
+        restored.username || ""
+      );
+
+      setSearchQuery(
+        restored.searchQuery || ""
+      );
+
+      setFilterType(
+        restored.filterType || "all"
+      );
+
+      sessionLifecycleRef.current
+        .restoreCount += 1;
+
+      setSessionRecovered(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    sessionLifecycleRef.current.lastSavedAt =
+      Date.now();
+
+    saveChatSessionState(
+      username,
+      searchQuery,
+      filterType
+    );
+  }, [
+    username,
+    searchQuery,
+    filterType,
+  ]);
 
   //  JOIN USER
   useEffect(() => {
@@ -507,6 +608,12 @@ return (
       <p className="mt-1 text-sm text-slate-500">
         Collaborate and communicate with your team in real time.
       </p>
+
+      {sessionRecovered && (
+        <p className="mt-2 text-xs text-green-600">
+          Session restored successfully
+        </p>
+      )}
     </div>
 
     {/* USERNAME */}
@@ -1037,6 +1144,20 @@ return (
         Send
       </button>
     </div>
+  <div
+    className="hidden"
+    data-session-restored={
+      String(sessionRecovered)
+    }
+    data-restore-count={
+      sessionLifecycleRef.current
+        .restoreCount
+    }
+    data-last-saved={
+      sessionLifecycleRef.current
+        .lastSavedAt
+    }
+  />
   </div>
-);
-}
+  );
+  }
