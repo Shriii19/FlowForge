@@ -31,17 +31,7 @@ const ToastContext =
   });
 
 const MAX_TOASTS = 4;
-
-function createToast(
-  message: string,
-  type: ToastType
-): Toast {
-  return {
-    id: Date.now(),
-    message,
-    type,
-  };
-}
+const TOAST_DURATION = 4000;
 
 export function useToast() {
   return useContext(ToastContext);
@@ -55,13 +45,31 @@ export function ToastProvider({
   const [toasts, setToasts] =
     useState<Toast[]>([]);
 
+  const toastIdRef = useRef(0);
+
   const toastTimersRef =
     useRef<
       Map<number, NodeJS.Timeout>
     >(new Map());
 
-  const removeToast = useCallback(
-    (id: number) => {
+  const createToast = useCallback(
+    (
+      message: string,
+      type: ToastType
+    ): Toast => {
+      toastIdRef.current += 1;
+
+      return {
+        id: toastIdRef.current,
+        message,
+        type,
+      };
+    },
+    []
+  );
+
+  const clearToastTimer =
+    useCallback((id: number) => {
       const timer =
         toastTimersRef.current.get(id);
 
@@ -69,6 +77,11 @@ export function ToastProvider({
         clearTimeout(timer);
         toastTimersRef.current.delete(id);
       }
+    }, []);
+
+  const removeToast = useCallback(
+    (id: number) => {
+      clearToastTimer(id);
 
       setToasts((prev) =>
         prev.filter(
@@ -76,32 +89,69 @@ export function ToastProvider({
         )
       );
     },
-    []
+    [clearToastTimer]
   );
 
-  const registerToastLifecycle =
+  const scheduleToastRemoval =
     useCallback(
       (id: number) => {
-        const existingTimer =
-          toastTimersRef.current.get(id);
+        clearToastTimer(id);
 
-        if (existingTimer) {
-          clearTimeout(
-            existingTimer
-          );
-        }
-
-        const timer: NodeJS.Timeout =
+        const timer =
           setTimeout(() => {
             removeToast(id);
-          }, 4000);
+          }, TOAST_DURATION);
 
         toastTimersRef.current.set(
           id,
           timer
         );
       },
-      [removeToast]
+      [
+        clearToastTimer,
+        removeToast,
+      ]
+    );
+
+  const evictOldestToast =
+    useCallback(
+      (toastList: Toast[]) => {
+        if (
+          toastList.length <=
+          MAX_TOASTS
+        ) {
+          return toastList;
+        }
+
+        const oldestToast =
+          toastList[0];
+
+        if (oldestToast) {
+          clearToastTimer(
+            oldestToast.id
+          );
+        }
+
+        return toastList.slice(1);
+      },
+      [clearToastTimer]
+    );
+
+  const findExistingToast =
+    useCallback(
+      (
+        toastList: Toast[],
+        message: string,
+        type: ToastType
+      ) => {
+        return toastList.find(
+          (toast) =>
+            toast.message ===
+              message &&
+            toast.type === type
+        );
+      },
+      []
     );
 
   const showToast = useCallback(
@@ -109,63 +159,68 @@ export function ToastProvider({
       message: string,
       type: ToastType = "info"
     ) => {
-      const toast = createToast(
-        message,
-        type
-      );
-
-      const { id } = toast;
+      let toastToSchedule:
+        | number
+        | null = null;
 
       setToasts((prev) => {
-        const duplicateExists =
-          prev.some(
-            (existingToast) =>
-              existingToast.message ===
-                message &&
-              existingToast.type ===
-                type
+        const existingToast =
+          findExistingToast(
+            prev,
+            message,
+            type
           );
 
-        if (duplicateExists) {
-          return prev;
+        if (existingToast) {
+          toastToSchedule =
+            existingToast.id;
+
+          const filteredToasts =
+            prev.filter(
+              (toast) =>
+                toast.id !==
+                existingToast.id
+            );
+
+          return [
+            ...filteredToasts,
+            existingToast,
+          ];
         }
 
-        const updated = [
+        const newToast =
+          createToast(
+            message,
+            type
+          );
+
+        toastToSchedule =
+          newToast.id;
+
+        const updatedToasts = [
           ...prev,
-          toast,
+          newToast,
         ];
 
-        if (
-          updated.length >
-          MAX_TOASTS
-        ) {
-          const removedToast =
-            updated.shift();
-
-          if (removedToast) {
-            const timer =
-              toastTimersRef.current.get(
-                removedToast.id
-              );
-
-            if (timer) {
-              clearTimeout(
-                timer
-              );
-
-              toastTimersRef.current.delete(
-                removedToast.id
-              );
-            }
-          }
-        }
-
-        return updated;
+        return evictOldestToast(
+          updatedToasts
+        );
       });
 
-      registerToastLifecycle(id);
+      if (
+        toastToSchedule !== null
+      ) {
+        scheduleToastRemoval(
+          toastToSchedule
+        );
+      }
     },
-    [registerToastLifecycle]
+    [
+      createToast,
+      evictOldestToast,
+      findExistingToast,
+      scheduleToastRemoval,
+    ]
   );
 
   useEffect(() => {
