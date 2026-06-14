@@ -28,6 +28,25 @@ function buildTaskConsistencyDiagnostics() {
   };
 }
 
+function buildTaskConflictMetadata(
+  existingTask,
+  updates
+) {
+  return {
+    conflictCheckedAt:
+      Date.now(),
+    previousStatus:
+      existingTask?.status ??
+      null,
+    incomingStatus:
+      updates?.status ??
+      existingTask?.status ??
+      null,
+    updateSource:
+      "task-controller",
+  };
+}
+
 
 function reconcileTaskUpdate(
   existingTask,
@@ -60,6 +79,21 @@ function isStaleTaskUpdate(
     ).getTime()
   );
 }
+
+function buildTaskUpdateSequence(
+  existingTask
+) {
+  return {
+    sequenceVersion:
+      (
+        existingTask
+          ?.sequenceVersion ?? 0
+      ) + 1,
+    sequenceGeneratedAt:
+      Date.now(),
+  };
+}
+
 
 
 // Get all tasks
@@ -152,6 +186,20 @@ export const updateTaskStatus = async (req, res) => {
     const consistencyDiagnostics =
       buildTaskConsistencyDiagnostics();
 
+    const conflictMetadata =
+      buildTaskConflictMetadata(
+        existingTask,
+        {
+          status,
+          position,
+        }
+      );
+
+    const updateSequence =
+      buildTaskUpdateSequence(
+        existingTask
+      );
+      
     if (
       isStaleTaskUpdate(
         existingTask,
@@ -190,6 +238,8 @@ export const updateTaskStatus = async (req, res) => {
             status,
             position,
             ...consistencyDiagnostics,
+            ...conflictMetadata,
+            ...updateSequence,
           }
         )
       )
@@ -247,6 +297,19 @@ export const updateTask = async (req, res) => {
 
     const consistencyDiagnostics =
       buildTaskConsistencyDiagnostics();
+
+    const conflictMetadata =
+      buildTaskConflictMetadata(
+        existingTask,
+        {
+          status,
+        }
+      );
+
+    const updateSequence =
+      buildTaskUpdateSequence(
+        existingTask
+      );
 
     if (
       isStaleTaskUpdate(
@@ -308,6 +371,8 @@ export const updateTask = async (req, res) => {
           {
             ...updateFields,
             ...consistencyDiagnostics,
+            ...conflictMetadata,
+            ...updateSequence,
           }
         )
       )
