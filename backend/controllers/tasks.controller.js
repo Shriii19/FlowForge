@@ -19,6 +19,16 @@ function buildTaskSyncMetadata() {
   };
 }
 
+function buildTaskConsistencyDiagnostics() {
+  return {
+    reconciliationVersion: 1,
+    conflictDetectionEnabled: true,
+    sequencingGuardEnabled: true,
+    generatedAt: Date.now(),
+  };
+}
+
+
 function reconcileTaskUpdate(
   existingTask,
   updates
@@ -139,6 +149,9 @@ export const updateTaskStatus = async (req, res) => {
       synchronizedAt,
     } = req.body;
 
+    const consistencyDiagnostics =
+      buildTaskConsistencyDiagnostics();
+
     if (
       isStaleTaskUpdate(
         existingTask,
@@ -176,6 +189,7 @@ export const updateTaskStatus = async (req, res) => {
           {
             status,
             position,
+            ...consistencyDiagnostics,
           }
         )
       )
@@ -230,6 +244,9 @@ export const updateTask = async (req, res) => {
     const {
       synchronizedAt,
     } = req.body;
+
+    const consistencyDiagnostics =
+      buildTaskConsistencyDiagnostics();
 
     if (
       isStaleTaskUpdate(
@@ -288,7 +305,10 @@ export const updateTask = async (req, res) => {
       .update(
         reconcileTaskUpdate(
           existingTask,
-          updateFields
+          {
+            ...updateFields,
+            ...consistencyDiagnostics,
+          }
         )
       )
       .eq("id", id)
