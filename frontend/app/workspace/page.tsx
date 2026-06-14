@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { KanbanBoard } from "../components/kanban/KanbanBoard";
 
 const users = [
@@ -25,6 +25,29 @@ function buildWorkspaceData() {
 }
 
 export default function WorkspacePage() {
+  const [showWorkspace, setShowWorkspace] =
+    useState(false);
+
+  const [showActivityFeed, setShowActivityFeed] =
+    useState(false);
+
+  useEffect(() => {
+    const workspaceTimer =
+      window.setTimeout(() => {
+        setShowWorkspace(true);
+      }, 150);
+
+    const activityTimer =
+      window.setTimeout(() => {
+        setShowActivityFeed(true);
+      }, 300);
+
+    return () => {
+      window.clearTimeout(workspaceTimer);
+      window.clearTimeout(activityTimer);
+    };
+  }, []);
+
   const workspaceData = useMemo(
     () => buildWorkspaceData(),
     []
@@ -65,7 +88,13 @@ export default function WorkspacePage() {
         </h2>
 
         <div className="h-[600px]">
-          <KanbanBoard />
+          {showWorkspace ? (
+            <KanbanBoard />
+          ) : (
+            <div className="flex h-full items-center justify-center text-slate-500">
+              Initializing workspace...
+            </div>
+          )}
         </div>
       </div>
 
@@ -78,18 +107,24 @@ export default function WorkspacePage() {
           {workspaceData.activityCount} recent activities
         </p>
 
-        <ul className="space-y-2 text-slate-700">
-          {workspaceData.activities.map(
-            (activity, i) => (
-              <li
-                key={i}
-                className="rounded-lg border border-(--line) bg-(--bg-soft) p-3"
-              >
-                {activity}
-              </li>
-            )
-          )}
-        </ul>
+        {showActivityFeed ? (
+          <ul className="space-y-2 text-slate-700">
+            {workspaceData.activities.map(
+              (activity, i) => (
+                <li
+                  key={i}
+                  className="rounded-lg border border-(--line) bg-(--bg-soft) p-3"
+                >
+                  {activity}
+                </li>
+              )
+            )}
+          </ul>
+        ) : (
+          <div className="text-sm text-slate-500">
+            Loading activity feed...
+          </div>
+        )}
       </div>
     </div>
   );
