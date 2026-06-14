@@ -285,7 +285,15 @@ export function KanbanBoard() {
   }
 
   function createTaskSnapshot(tasks: Task[]) {
-    return tasks.map((task) => ({ ...task }));
+    const snapshot: Task[] = [];
+
+    for (const task of tasks) {
+      snapshot.push({
+        ...task,
+      });
+    }
+
+    return snapshot;
   }
 
   function rollbackTaskState() {
@@ -310,15 +318,28 @@ export function KanbanBoard() {
   function normalizeColumnPositions(
     taskList: Task[]
   ) {
-    return COLUMNS.flatMap((column) =>
-      taskList
-        .filter((task) => task.status === column.id)
-        .sort((a, b) => a.position - b.position)
-        .map((task, index) => ({
-          ...task,
-          position: index,
-        }))
-    );
+    const normalizedTasks: Task[] = [];
+
+    for (const column of COLUMNS) {
+      const columnTasks = taskList
+        .filter(
+          (task) => task.status === column.id
+        )
+        .sort(
+          (a, b) => a.position - b.position
+        );
+
+      columnTasks.forEach(
+        (task, index) => {
+          normalizedTasks.push({
+            ...task,
+            position: index,
+          });
+        }
+      );
+    }
+
+    return normalizedTasks;
   }
 
   const handleDragEnd = async (event: DragEndEvent) => {
