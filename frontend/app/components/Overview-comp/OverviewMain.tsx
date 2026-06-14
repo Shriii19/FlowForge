@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react";
 import StatsCard from "./StatsCard";
 import Heatmap from "./Heatmap";
 
@@ -15,6 +21,19 @@ type OverviewInsights = {
   topContributors: string[];
 };
 
+type RefreshState =
+  | "idle"
+  | "loading"
+  | "completed"
+  | "failed";
+
+type OverviewMetrics = {
+  totalActivity: number;
+  contributorCount: number;
+  activityCount: number;
+};
+
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 const fallbackOverview: OverviewInsights = {
@@ -28,32 +47,137 @@ const fallbackOverview: OverviewInsights = {
   topContributors: [],
 };
 
+function buildOverviewMetrics(
+  overview: OverviewInsights
+): OverviewMetrics {
+  return {
+    totalActivity:
+      overview.activeTasks +
+      overview.completedTasks,
+    contributorCount:
+      overview.topContributors.length,
+    activityCount:
+      overview.recentActivity.length,
+  };
+}
+
+function shouldSkipRefresh(
+  isRefreshing: boolean
+) {
+  return isRefreshing;
+}
+
 export default function OverviewMain() {
   const [overview, setOverview] = useState<OverviewInsights>(fallbackOverview);
   const [status, setStatus] = useState("Loading backend overview...");
 
-  useEffect(() => {
-    const controller = new AbortController();
+  const refreshLockRef =
+    useRef(false);
 
-    async function loadOverview() {
-      try {
-        const response = await fetch(`${API_URL}/api/insights/overview`, {
-          signal: controller.signal,
-        });
-        if (!response.ok) throw new Error("Failed to load overview insights");
-        const body = (await response.json()) as OverviewInsights;
-        setOverview(body);
-        setStatus("Synced with backend insights.");
-      } catch (error) {
-        if ((error as Error).name !== "AbortError") {
-          setStatus("Showing local overview because backend insights are unavailable.");
+  const lastRefreshRef =
+    useRef<number>(0);
+
+  const [
+    refreshState,
+    setRefreshState,
+  ] =
+    useState<RefreshState>(
+      "idle"
+    );
+
+  const loadOverview =
+    useCallback(
+      async (
+        controller: AbortController
+      ) => {
+        if (
+          shouldSkipRefresh(
+            refreshLockRef.current
+          )
+        ) {
+          return;
         }
-      }
-    }
 
-    void loadOverview();
-    return () => controller.abort();
-  }, []);
+        refreshLockRef.current =
+          true;
+
+        setRefreshState(
+          "loading"
+        );
+
+        try {
+          const response =
+            await fetch(
+              `${API_URL}/api/insights/overview`,
+              {
+                signal:
+                  controller.signal,
+              }
+            );
+
+          if (!response.ok) {
+            throw new Error(
+              "Failed to load overview insights"
+            );
+          }
+
+          const body =
+            (await response.json()) as OverviewInsights;
+
+          setOverview(body);
+
+          setStatus(
+            "Synced with backend insights."
+          );
+
+          lastRefreshRef.current =
+            Date.now();
+
+          setRefreshState(
+            "completed"
+          );
+        } catch (error) {
+          if (
+            (error as Error)
+              .name !==
+            "AbortError"
+          ) {
+            setStatus(
+              "Showing local overview because backend insights are unavailable."
+            );
+
+            setRefreshState(
+              "failed"
+            );
+          }
+        } finally {
+          refreshLockRef.current =
+            false;
+        }
+      },
+      []
+    );
+
+  useEffect(() => {
+    const controller =
+      new AbortController();
+
+    void loadOverview(
+      controller
+    );
+
+    return () =>
+      controller.abort();
+  }, [loadOverview]);
+
+  const overviewMetrics =
+    useMemo(
+      () =>
+        buildOverviewMetrics(
+          overview
+        ),
+      [overview]
+    );
 
   return (
     <div className="flex-1">
@@ -71,12 +195,40 @@ export default function OverviewMain() {
               A backend-synced view of task velocity, activity density, and contributor movement across the current project.
             </p>
             <p className="mt-3 text-12px text-on-surface-variant60">{status}</p>
+
+            <p className="mt-2 text-11px text-primary">
+              Refresh State: {refreshState}
+            </p>
           </div>
+
 
           <div className="flex gap-4">
             <StatsCard label="Total Velocity" value={String(overview.velocity)} sub={<><span className="material-symbols-outlined">trending_up</span>{overview.completedTasks}</>} />
             <StatsCard label="Sprint Momentum" value={String(overview.momentum)} sub={<><span className="material-symbols-outlined">bolt</span>{overview.activeTasks} Active</>} />
           </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-4 mb-8">
+          <StatsCard
+            label="Activities"
+            value={String(
+              overviewMetrics.activityCount
+            )}
+          />
+
+          <StatsCard
+            label="Contributors"
+            value={String(
+              overviewMetrics.contributorCount
+            )}
+          />
+
+          <StatsCard
+            label="Total Tasks"
+            value={String(
+              overviewMetrics.totalActivity
+            )}
+          />
         </div>
 
         <div className="flex flex-col gap-6 xl:flex-row">
