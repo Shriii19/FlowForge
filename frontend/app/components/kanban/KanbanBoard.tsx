@@ -51,6 +51,7 @@ export function KanbanBoard() {
   const dragOperationRef = useRef<string | null>(null);
   const previousTasksRef = useRef<Task[]>([]);
   const lastSocketUpdateRef = useRef<Map<string, number>>(new Map());
+  const isDraggingRef = useRef(false);
 
   const handleEditTask = async (task: Task) => {
   const newTitle = window.prompt("Edit title:", task.title);
@@ -111,6 +112,10 @@ export function KanbanBoard() {
     }, 0);
 
       newSocket.on("task-moved", (movedTask: Task) => {
+
+        if (isDraggingRef.current) {
+          return;
+        }
         if (
           isSyncingRef.current ||
           isDuplicateRealtimeUpdate(movedTask)
@@ -135,6 +140,7 @@ export function KanbanBoard() {
         });
       });
         newSocket.on("task-created", (newTask: Task) => {
+          if (isDraggingRef.current) return;
           setTasks((prev) =>
             [...prev, newTask].sort(
               (a, b) => a.position - b.position
@@ -143,6 +149,9 @@ export function KanbanBoard() {
         });
 
         newSocket.on("task-updated", (updatedTask: Task) => {
+
+          if (isDraggingRef.current) return;
+
           setTasks((prev) =>
             prev.map((t) =>
               t.id === updatedTask.id
@@ -153,6 +162,8 @@ export function KanbanBoard() {
         });
 
         newSocket.on("task-deleted", (taskId: string) => {
+          if (isDraggingRef.current) return;
+          
           setTasks((prev) =>
             prev.filter((t) => t.id !== taskId)
           );
@@ -188,6 +199,8 @@ export function KanbanBoard() {
     dragOperationRef.current = String(
       event.active.id
     );
+
+    isDraggingRef.current = true;
 
     previousTasksRef.current =
       createTaskSnapshot(tasks);
@@ -272,7 +285,15 @@ export function KanbanBoard() {
   }
 
   function createTaskSnapshot(tasks: Task[]) {
-    return tasks.map((task) => ({ ...task }));
+    const snapshot: Task[] = [];
+
+    for (const task of tasks) {
+      snapshot.push({
+        ...task,
+      });
+    }
+
+    return snapshot;
   }
 
   function rollbackTaskState() {
@@ -297,15 +318,28 @@ export function KanbanBoard() {
   function normalizeColumnPositions(
     taskList: Task[]
   ) {
-    return COLUMNS.flatMap((column) =>
-      taskList
-        .filter((task) => task.status === column.id)
-        .sort((a, b) => a.position - b.position)
-        .map((task, index) => ({
-          ...task,
-          position: index,
-        }))
-    );
+    const normalizedTasks: Task[] = [];
+
+    for (const column of COLUMNS) {
+      const columnTasks = taskList
+        .filter(
+          (task) => task.status === column.id
+        )
+        .sort(
+          (a, b) => a.position - b.position
+        );
+
+      columnTasks.forEach(
+        (task, index) => {
+          normalizedTasks.push({
+            ...task,
+            position: index,
+          });
+        }
+      );
+    }
+
+    return normalizedTasks;
   }
 
   const handleDragEnd = async (event: DragEndEvent) => {
@@ -314,9 +348,11 @@ export function KanbanBoard() {
     isSyncingRef.current = true;
     setActiveTask(null);
 
-  const { active, over } = event;
+    const { active, over } = event;
+
   if (!over) {
     dragOperationRef.current = null;
+    isDraggingRef.current = false;
     isSyncingRef.current = false;
     return;
   }
@@ -327,6 +363,7 @@ export function KanbanBoard() {
   const activeTask = tasks.find((t) => t.id === activeId);
   if (!activeTask) {
     dragOperationRef.current = null;
+    isDraggingRef.current = false;
     isSyncingRef.current = false;
     return;
   }
@@ -336,6 +373,7 @@ export function KanbanBoard() {
   if (over.data.current?.type === "Column") {
     if (!isTaskStatus(over.id)) {
       dragOperationRef.current = null;
+      isDraggingRef.current = false;
       isSyncingRef.current = false;
       return;
     }
@@ -437,7 +475,7 @@ export function KanbanBoard() {
       });
 
     }
-  } catch (error) {
+  }catch (error) {
     rollbackTaskState();
 
     console.error(
@@ -445,9 +483,11 @@ export function KanbanBoard() {
       error
     );
 
+    isDraggingRef.current = false;
     isSyncingRef.current = false;
   }
   dragOperationRef.current = null;
+  isDraggingRef.current = false;
   isSyncingRef.current = false;
   setActiveTask(null);
 };
