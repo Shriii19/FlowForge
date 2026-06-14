@@ -46,6 +46,32 @@ function buildSessionContinuity(
   };
 }
 
+function buildContextSynchronizationMetadata(
+  messages = []
+) {
+  return {
+    synchronizationEnabled: true,
+    contextVersion:
+      messages.length,
+    reconciliationTimestamp:
+      Date.now(),
+    lifecycleValidated: true,
+  };
+}
+
+function reconcileConversationContext(
+  payload
+) {
+  return {
+    ...payload,
+    reconciliationId:
+      `${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 8)}`,
+    synchronized: true,
+  };
+}
+
 export const getMessages = async (req, res) => {
   const { data, error } = await supabase
     .from("messages")
@@ -71,9 +97,15 @@ export const getMessages = async (req, res) => {
       data || []
     );
 
+  const synchronizationMetadata =
+    buildContextSynchronizationMetadata(
+      data || []
+    );
+
   res.json({
     messages: data,
     continuity,
+    synchronizationMetadata,
   });
 };
 
@@ -157,13 +189,15 @@ export const sendMessage = async (
     }
 
     const normalizedPayload =
-      normalizeMessagePayload({
-        text,
-        username,
-        image,
-        audio,
-        status: "sent",
-      });
+      reconcileConversationContext(
+        normalizeMessagePayload({
+          text,
+          username,
+          image,
+          audio,
+          status: "sent",
+        })
+      );
 
     const { data, error } =
       await supabase
@@ -204,12 +238,18 @@ export const sendMessage = async (
       data[0]
     );
 
+    const synchronizationMetadata =
+      buildContextSynchronizationMetadata(
+        data || []
+      );
+
     res.json({
       messages: data,
       continuity:
         buildSessionContinuity(
           data || []
         ),
+      synchronizationMetadata,
     });
   } catch (err) {
     console.error(
