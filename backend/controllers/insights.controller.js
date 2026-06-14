@@ -40,6 +40,33 @@ function buildFallbackInsights() {
   };
 }
 
+function createInsightPerformanceMetadata(
+  tasks,
+  messages
+) {
+  return {
+    datasetSize:
+      tasks.length +
+      messages.length,
+    lazyEvaluationEnabled: true,
+    transformationVersion: 1,
+    generatedAt:
+      Date.now(),
+  };
+}
+
+function shouldUseLazyProcessing(
+  tasks,
+  messages
+) {
+  return (
+    tasks.length +
+      messages.length >
+    50
+  );
+}
+
+
 function relativeTime(value) {
   if (!value) return "Recently";
   const timestamp = new Date(value).getTime();
@@ -129,6 +156,24 @@ function countByStatus(tasks = []) {
   );
 }
 
+function createTransformationCache() {
+  const cache = new Map();
+
+  return {
+    get(key) {
+      return cache.get(key);
+    },
+    set(key, value) {
+      cache.set(key, value);
+      return value;
+    },
+  };
+}
+
+const insightCache =
+  createTransformationCache();
+
+
 async function loadSourceData() {
   const [
     { data: tasks, error: tasksError },
@@ -147,9 +192,16 @@ async function loadSourceData() {
   const normalizedMessages =
     normalizeMessages(messages || []);
 
+  const performanceMetadata =
+    createInsightPerformanceMetadata(
+      normalizedTasks,
+      normalizedMessages
+    );
+
   return {
     tasks: normalizedTasks,
     messages: normalizedMessages,
+    performanceMetadata,
     metadata: {
       confidence:
         buildInsightConfidence(
@@ -204,7 +256,24 @@ export const getOverviewInsights = async (req, res) => {
         counts
       );
 
-    const recentActivity = buildRecentActivity(tasks, messages);
+    const cacheKey =
+      `overview-${tasks.length}-${messages.length}`;
+
+    const recentActivity =
+      insightCache.get(cacheKey) ??
+      insightCache.set(
+        cacheKey,
+        buildRecentActivity(
+          tasks,
+          messages
+        )
+      );
+
+    const lazyProcessing =
+      shouldUseLazyProcessing(
+        tasks,
+        messages
+      );
 
     res.status(200).json({
       projectName: "Project Alpha",
@@ -213,6 +282,10 @@ export const getOverviewInsights = async (req, res) => {
       dataQuality:
         metadata.dataQuality,
       normalized: true,
+      lazyProcessing,
+      datasetSize:
+        tasks.length +
+        messages.length,
       ...overviewMetrics,
       heatmap: buildHeatmap(tasks, messages),
       recentActivity,
@@ -236,6 +309,15 @@ export const getTaskInsights = async (req, res) => {
       counts
     );
 
+    const lazyProcessing =
+      shouldUseLazyProcessing(
+        tasks,
+        []
+      );
+
+    const historyCacheKey =
+      `history-${tasks.length}`;
+
     const total =
       Math.max(tasks.length, 1);
 
@@ -253,16 +335,43 @@ export const getTaskInsights = async (req, res) => {
       { label: "Done", sub: "Archived", value: counts.done, active: counts.done > 0 && counts.done >= counts.in_progress },
     ];
 
-    const history = tasks.slice(-12).reverse().map((task, index) => ({
-      id: String(task.id || index),
-      task: task.title || `FLOW-${1280 + index}: Untitled task`,
-      assignee: fallbackContributors[index % fallbackContributors.length],
-      avatar: `https://i.pravatar.cc/96?u=${encodeURIComponent(String(task.id || index))}`,
-      state: statusLabel(task.status),
-      time: task.created_at ? new Date(task.created_at).toLocaleString() : "Recently",
-      trigger: task.status === "done" ? "Completion Event" : "System Trigger",
-      transition: relativeTime(task.created_at),
-    }));
+    const history =
+      insightCache.get(
+        historyCacheKey
+      ) ??
+      insightCache.set(
+        historyCacheKey,
+        tasks
+          .slice(-12)
+          .reverse()
+          .map((task, index) => ({
+            id: String(task.id || index),
+            task:
+              task.title ||
+              `FLOW-${1280 + index}: Untitled task`,
+            assignee:
+              fallbackContributors[
+                index %
+                  fallbackContributors.length
+              ],
+            avatar: `https://i.pravatar.cc/96?u=${encodeURIComponent(
+              String(task.id || index)
+            )}`,
+            state: statusLabel(task.status),
+            time: task.created_at
+              ? new Date(
+                  task.created_at
+                ).toLocaleString()
+              : "Recently",
+            trigger:
+              task.status === "done"
+                ? "Completion Event"
+                : "System Trigger",
+            transition: relativeTime(
+              task.created_at
+            ),
+          }))
+      );
 
     const fallbackInsights =
       buildFallbackInsights();
@@ -275,6 +384,9 @@ export const getTaskInsights = async (req, res) => {
         metadata.dataQuality,
       normalized:
         fallbackInsights.normalized,
+
+      lazyProcessing,
+      datasetSize: tasks.length,
       stages,
       flowNodes,
       history,
