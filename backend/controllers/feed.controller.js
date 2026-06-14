@@ -70,6 +70,32 @@ function buildRankingMetadata(
   };
 }
 
+function buildStableRankingMetadata(
+  item,
+  index
+) {
+  return {
+    stableRankKey: `${item.id}-${index}`,
+    insertionOrder: index,
+    refreshSequence:
+      Date.now(),
+  };
+}
+
+function buildFeedMetadata(
+  items = []
+) {
+  return {
+    totalItems:
+      items.length,
+    stableSortingEnabled: true,
+    refreshSafeOrdering: true,
+    generatedAt:
+      Date.now(),
+  };
+}
+
+
 
 function toRelativeTime(value) {
   if (!value) return "Just now";
@@ -195,7 +221,18 @@ function buildFeedItems(tasks = [], messages = []) {
 function sortFeedItems(items = []) {
   return items
     .map(
-      buildRankingMetadata
+      (
+        item,
+        index
+      ) => ({
+        ...buildRankingMetadata(
+          item
+        ),
+        ...buildStableRankingMetadata(
+          item,
+          index
+        ),
+      })
     )
     .sort((a, b) => {
       if (
@@ -218,7 +255,14 @@ function sortFeedItems(items = []) {
           b.createdAt || ""
         ) || 0;
 
-      return bTime - aTime;
+      if (bTime !== aTime) {
+        return bTime - aTime;
+      }
+
+      return (
+        a.insertionOrder -
+        b.insertionOrder
+      );
     });
 }
 
@@ -264,6 +308,15 @@ export const getFeedItems = async (req, res) => {
         )
       );
 
+    const refreshCycleMetadata = {
+      refreshEvaluatedAt:
+        Date.now(),
+      stableOrdering:
+        true,
+      rapidInsertionSafe:
+        true,
+    };
+
     const feedMetadata =
       buildFeedMetadata(
         aggregatedItems
@@ -275,8 +328,10 @@ export const getFeedItems = async (req, res) => {
     );
 
     res.status(200).json({
-      metadata:
-        feedMetadata,
+      metadata: {
+        ...feedMetadata,
+        ...refreshCycleMetadata,
+      },
       items,
       pagination: {
         page,
