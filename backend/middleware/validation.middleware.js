@@ -7,14 +7,31 @@ const VALID_TASK_STATUS = [
   "done",
 ];
 
+const VALIDATION_VERSION = 1;
+
 function sanitizeText(value = "") {
   return xss(String(value).trim());
 }
 
-function createValidationError(
+function buildValidationMetadata(
+  field,
+  code
+) {
+  return {
+    version:
+      VALIDATION_VERSION,
+    field,
+    code,
+    generatedAt:
+      new Date().toISOString(),
+  };
+}
+
+function transformValidationError(
   field,
   message,
-  code = "VALIDATION_ERROR"
+  code =
+    "VALIDATION_ERROR"
 ) {
   return {
     success: false,
@@ -23,8 +40,54 @@ function createValidationError(
       field,
       message,
       timestamp: Date.now(),
+      metadata:
+        buildValidationMetadata(
+          field,
+          code
+        ),
     },
   };
+}
+
+function sendValidationFailure(
+  res,
+  field,
+  message,
+  code
+) {
+  return res.status(400).json(
+    transformValidationError(
+      field,
+      message,
+      code
+    )
+  );
+}
+
+function validateLengthRule(
+  value,
+  min,
+  max
+) {
+  return validator.isLength(
+    String(value || "").trim(),
+    {
+      min,
+      max,
+    }
+  );
+}
+
+function createValidationError(
+  field,
+  message,
+  code = "VALIDATION_ERROR"
+) {
+  return transformValidationError(
+    field,
+    message,
+    code
+  );
 }
 
 function validateTaskStatus(
@@ -48,6 +111,20 @@ function validateTaskPosition(
   );
 }
 
+export function validateValidationSystem() {
+  return {
+    version:
+      VALIDATION_VERSION,
+    supportedEntities: [
+      "task",
+      "message",
+      "feed",
+    ],
+    standardizedErrors:
+      true,
+  };
+}
+
 export function validateTask(
   req,
   res,
@@ -62,34 +139,31 @@ export function validateTask(
 
   if (
     !title ||
-    !validator.isLength(
-      title.trim(),
-      {
-        min: 1,
-        max: 120,
-      }
+    !validateLengthRule(
+      title,
+      1,
+      120
     )
   ) {
-    return res.status(400).json(
-      createValidationError(
-        "title",
-        "Task title must be between 1 and 120 characters"
-      )
+    return sendValidationFailure(
+      res,
+      "title",
+      "Task title must be between 1 and 120 characters"
     );
   }
 
   if (
     description &&
-    !validator.isLength(
-      description.trim(),
-      { max: 1000 }
+    !validateLengthRule(
+      description,
+      0,
+      1000
     )
   ) {
-    return res.status(400).json(
-      createValidationError(
-        "description",
-        "Description too long"
-      )
+    return sendValidationFailure(
+      res,
+      "description",
+      "Description too long"
     );
   }
 
@@ -98,11 +172,10 @@ export function validateTask(
       status
     )
   ) {
-    return res.status(400).json(
-      createValidationError(
-        "status",
-        "Invalid task status"
-      )
+    return sendValidationFailure(
+      res,
+      "status",
+      "Invalid task status"
     );
   }
 
@@ -111,11 +184,10 @@ export function validateTask(
       position
     )
   ) {
-    return res.status(400).json(
-      createValidationError(
-        "position",
-        "Invalid task position"
-      )
+    return sendValidationFailure(
+      res,
+      "position",
+      "Invalid task position"
     );
   }
 
@@ -142,34 +214,31 @@ export function validateMessage(
 
   if (
     username &&
-    !validator.isLength(
-      username.trim(),
-      {
-        min: 2,
-        max: 40,
-      }
+    !validateLengthRule(
+      username,
+      2,
+      40
     )
   ) {
-    return res.status(400).json(
-      createValidationError(
-        "username",
-        "Invalid username length"
-      )
+    return sendValidationFailure(
+      res,
+      "username",
+      "Invalid username length"
     );
   }
 
   if (
     text &&
-    !validator.isLength(
-      text.trim(),
-      { max: 2000 }
+    !validateLengthRule(
+      text,
+      0,
+      2000
     )
   ) {
-    return res.status(400).json(
-      createValidationError(
-        "text",
-        "Message too long"
-      )
+    return sendValidationFailure(
+      res,
+      "text",
+      "Message too long"
     );
   }
 
@@ -197,37 +266,31 @@ export function validateFeedItem(
 
   if (
     !title ||
-    !validator.isLength(
-      title.trim(),
-      {
-        min: 1,
-        max: 120,
-      }
+    !validateLengthRule(
+      title,
+      1,
+      120
     )
   ) {
-    return res.status(400).json(
-      createValidationError(
-        "title",
-        "Invalid title"
-      )
+    return sendValidationFailure(
+      res,
+      "title",
+      "Invalid title"
     );
   }
 
   if (
     !body ||
-    !validator.isLength(
-      body.trim(),
-      {
-        min: 1,
-        max: 1500,
-      }
+    !validateLengthRule(
+      body,
+      1,
+      1500
     )
   ) {
-    return res.status(400).json(
-      createValidationError(
-        "body",
-        "Invalid body"
-      )
+    return sendValidationFailure(
+      res,
+      "body",
+      "Invalid body"
     );
   }
 
@@ -243,11 +306,10 @@ export function validateFeedItem(
       type
     )
   ) {
-    return res.status(400).json(
-      createValidationError(
-        "type",
-        "Invalid feed type"
-      )
+    return sendValidationFailure(
+      res,
+      "type",
+      "Invalid feed type"
     );
   }
 
@@ -258,4 +320,15 @@ export function validateFeedItem(
     sanitizeText(body);
 
   next();
+}
+
+export function getValidationMetrics() {
+  return {
+    version:
+      VALIDATION_VERSION,
+    supportedStatuses:
+      VALID_TASK_STATUS.length,
+    timestamp:
+      Date.now(),
+  };
 }
