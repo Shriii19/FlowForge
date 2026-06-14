@@ -19,6 +19,21 @@ type Props = {
   onCreated: (project: Project) => void;
 };
 
+type ProjectDraft = {
+  name: string;
+  desc: string;
+  members: number;
+  due: string | null;
+};
+
+type ProjectCreationState =
+  | "idle"
+  | "validating"
+  | "creating"
+  | "completed"
+  | "failed";
+
+
 function resetProjectForm(
   setPname: (value: string) => void,
   setPDesc: (value: string) => void,
@@ -57,6 +72,52 @@ async function resolveSessionToken() {
   return session.access_token;
 }
 
+function buildProjectDraft(
+  name: string,
+  desc: string,
+  members: number,
+  deadline: string
+): ProjectDraft {
+  return {
+    name: name.trim(),
+    desc: desc.trim(),
+    members,
+    due: deadline
+      ? new Date(deadline).toISOString()
+      : null,
+  };
+}
+
+function validateProjectDraft(
+  draft: ProjectDraft
+) {
+  if (!draft.name) {
+    return "Project name is required.";
+  }
+
+  if (draft.members < 0) {
+    return "Team size cannot be negative.";
+  }
+
+  return "";
+}
+
+async function createProjectRequest(
+  token: string,
+  draft: ProjectDraft
+) {
+  return fetch("/api/projects", {
+    method: "POST",
+    headers: {
+      "Content-Type":
+        "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(draft),
+  });
+}
+
+
 export default function ProjectDialog({
   isOpen,
   onClose,
@@ -83,6 +144,14 @@ export default function ProjectDialog({
 
   const [loading, setLoading] =
     useState(false);
+
+  const [
+    creationState,
+    setCreationState,
+  ] =
+    useState<ProjectCreationState>(
+      "idle"
+    );
 
   const initialFocusRef =
     useRef<HTMLInputElement | null>(
@@ -136,18 +205,40 @@ export default function ProjectDialog({
       setError
     );
 
+    setCreationState("idle");
+
     onClose();
   };
 
   const submit = async () => {
     setError("");
 
-    if (!Pname.trim()) {
-      setError(
-        "Project name is required."
+    setCreationState(
+      "validating"
+    );
+
+    const draft =
+      buildProjectDraft(
+        Pname,
+        Pdesc,
+        PteamSize,
+        Pdeadline
       );
+
+    const validationError =
+      validateProjectDraft(
+        draft
+      );
+
+    if (validationError) {
+      setCreationState("failed");
+      setError(validationError);
       return;
     }
+
+    setCreationState(
+      "creating"
+    );
 
     setLoading(true);
 
@@ -158,43 +249,33 @@ export default function ProjectDialog({
         token =
           await resolveSessionToken();
       } catch (error) {
+        setCreationState("failed");
+
         setError(
           (error as Error).message
         );
+
         setLoading(false);
         return;
       }
 
-      const res = await fetch(
-        "/api/projects",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type":
-              "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            name: Pname.trim(),
-            desc: Pdesc.trim(),
-            members: PteamSize,
-            due: Pdeadline
-              ? new Date(
-                  Pdeadline
-                ).toISOString()
-              : null,
-          }),
-        }
-      );
+      const res =
+        await createProjectRequest(
+          token,
+          draft
+        );
 
       const payload =
         await res.json();
 
       if (!res.ok) {
+        setCreationState("failed");
+
         setError(
           payload.error ||
             "Failed to create project."
         );
+
         setLoading(false);
         return;
       }
@@ -203,17 +284,31 @@ export default function ProjectDialog({
         payload.project
       );
 
-      close();
-    } catch (err) {
-      setError(
-        "An unexpected error occurred."
+      resetProjectForm(
+        setPname,
+        setPDesc,
+        setPTeamSize,
+        setPDeadline,
+        setError
       );
 
-      console.error(
-        "Project creation error:",
-        err
+      setCreationState(
+        "completed"
       );
-    } finally {
+
+      onClose();
+      } catch (err) {
+        setCreationState("failed");
+
+        setError(
+          "An unexpected error occurred."
+        );
+
+        console.error(
+          "Project creation error:",
+          err
+        );
+      } finally {
       setLoading(false);
     }
   };
@@ -233,10 +328,19 @@ export default function ProjectDialog({
         }}
       />
 
+
+
       <div className="relative z-10 w-full max-w-md rounded-xl bg-white p-6 shadow-lg">
+
         <h3 className="text-lg font-semibold mb-4">
           Add Project
         </h3>
+
+        <div className="mb-4">
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs">
+            Workflow: {creationState}
+          </span>
+        </div>
 
         <label className="block mb-2 text-sm text-black">
           Project Name *
