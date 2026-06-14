@@ -11,20 +11,43 @@ const commands = [
   { id: 5, label: "Insights Feed", href: "/insights/feed" },
 ];
 
-function buildSearchableCommands(
+type CommandCategory =
+  | "Navigation"
+  | "Insights";
+
+type IndexedCommand = {
+  id: number;
+  label: string;
+  href: string;
+  category: CommandCategory;
+  searchLabel: string;
+  keywords: string[];
+};
+
+function buildCommandIndex(
   commandList: typeof commands
-) {
-  return commandList.map((command) => ({
-    ...command,
-    searchLabel:
-      command.label.toLowerCase(),
-  }));
+): IndexedCommand[] {
+  return commandList.map(
+    (command) => ({
+      ...command,
+      category:
+        command.label.includes(
+          "Insights"
+        )
+          ? "Insights"
+          : "Navigation",
+      searchLabel:
+        command.label.toLowerCase(),
+      keywords:
+        command.label
+          .toLowerCase()
+          .split(" "),
+    })
+  );
 }
 
 function calculateCommandScore(
-  command: ReturnType<
-    typeof buildSearchableCommands
-  >[number],
+  command: IndexedCommand,
   query: string,
   recentCommands: typeof commands
 ) {
@@ -87,38 +110,60 @@ function calculateCommandScore(
   return score;
 }
 
-function filterCommands(
-  commandList: ReturnType<
-    typeof buildSearchableCommands
-  >,
+function groupCommandsByCategory(
+  commands: IndexedCommand[]
+) {
+  return commands.reduce<
+    Record<
+      string,
+      IndexedCommand[]
+    >
+  >((groups, command) => {
+    if (
+      !groups[
+        command.category
+      ]
+    ) {
+      groups[
+        command.category
+      ] = [];
+    }
+
+    groups[
+      command.category
+    ].push(command);
+
+    return groups;
+  }, {});
+}
+
+function calculateDiscoveryScore(
+  command: IndexedCommand,
   query: string,
   recentCommands: typeof commands
 ) {
-  const normalizedQuery =
-    query.trim().toLowerCase();
-
-  if (!normalizedQuery) {
-    return commandList;
-  }
-
-  return commandList
-    .map((command) => ({
-      ...command,
-      score:
-        calculateCommandScore(
-          command,
-          normalizedQuery,
-          recentCommands
-        ),
-    }))
-    .filter(
-      (command) => command.score > 0
-    )
-    .sort(
-      (a, b) =>
-        b.score - a.score
+  const baseScore =
+    calculateCommandScore(
+      command,
+      query,
+      recentCommands
     );
+
+  const keywordScore =
+    command.keywords.reduce(
+      (score, keyword) =>
+        query.includes(keyword)
+          ? score + 5
+          : score,
+      0
+    );
+
+  return (
+    baseScore +
+    keywordScore
+  );
 }
+
 
 
 function buildRecentCommands(
@@ -142,10 +187,10 @@ export default function CommandPalette() {
   const [recentCommands, setRecentCommands] =
     useState<typeof commands>([]);
 
-  const searchableCommands =
+  const commandIndex =
     useMemo(
       () =>
-        buildSearchableCommands(
+        buildCommandIndex(
           commands
         ),
       []
@@ -198,19 +243,41 @@ export default function CommandPalette() {
   }, []);
 
   const filteredCommands =
-    useMemo(
-      () =>
-        filterCommands(
-          searchableCommands,
-          query,
-          recentCommands
-        ),
-      [
-        searchableCommands,
-        query,
-        recentCommands,
-      ]
-    );
+    useMemo(() => {
+      const normalizedQuery =
+        query
+          .trim()
+          .toLowerCase();
+
+      if (
+        !normalizedQuery
+      ) {
+        return commandIndex;
+      }
+
+      return commandIndex
+        .map((command) => ({
+          ...command,
+          score:
+            calculateDiscoveryScore(
+              command,
+              normalizedQuery,
+              recentCommands
+            ),
+        }))
+        .filter(
+          (command) =>
+            command.score > 0
+        )
+        .sort(
+          (a, b) =>
+            b.score - a.score
+        );
+    }, [
+      commandIndex,
+      query,
+      recentCommands,
+    ]);
 
   useEffect(() => {
     setSelected(0);
@@ -291,6 +358,15 @@ export default function CommandPalette() {
     router,
     recentCommands,
   ]);
+
+  const groupedCommands =
+    useMemo(
+      () =>
+        groupCommandsByCategory(
+          filteredCommands
+        ),
+      [filteredCommands]
+    );
 
   if (!open) return null;
 
@@ -377,54 +453,83 @@ export default function CommandPalette() {
               </p>
             </div>
           ) : (
-            filteredCommands.map(
-              (command, index) => (
-                <button
-                  key={command.id}
-                  onClick={() => {
-                    const updatedRecent =
-                      buildRecentCommands(
-                        command,
-                        recentCommands
-                      );
+            Object.entries(
+              groupedCommands
+            ).map(
+              ([
+                category,
+                categoryCommands,
+              ]) => (
+                <div key={category}>
+                  <div className="px-4 py-2 text-[10px] font-semibold uppercase tracking-widest text-outline">
+                    {category}
+                  </div>
 
-                    setRecentCommands(
-                      updatedRecent
-                    );
+                  {categoryCommands.map(
+                    (
+                      command,
+                      index
+                    ) => (
+                      <button
+                        key={command.id}
+                        onClick={() => {
+                          const updatedRecent =
+                            buildRecentCommands(
+                              command,
+                              recentCommands
+                            );
 
-                    localStorage.setItem(
-                      "flowforge-recent-commands",
-                      JSON.stringify(
-                        updatedRecent
-                      )
-                    );
+                          setRecentCommands(
+                            updatedRecent
+                          );
 
-                    router.push(
-                      command.href
-                    );
+                          localStorage.setItem(
+                            "flowforge-recent-commands",
+                            JSON.stringify(
+                              updatedRecent
+                            )
+                          );
 
-                    setOpen(false);
-                    setQuery("");
-                  }}
-                  className={`flex w-full items-center justify-between px-4 py-3 text-left transition-all duration-200 ${
-                    selected === index
-                      ? "bg-primary/10 text-primary"
-                      : "hover:bg-surface-container-low"
-                  }`}
-                >
-                  <span className="font-medium">
-                    {command.label}
-                  </span>
+                          router.push(
+                            command.href
+                          );
 
-                  <span className="rounded-md border border-outline-variant bg-surface-container-low px-2 py-1 text-[10px] text-outline">
-                    Enter
-                  </span>
-                </button>
+                          setOpen(false);
+                          setQuery("");
+                        }}
+                        className={`flex w-full items-center justify-between px-4 py-3 text-left transition-all duration-200 ${
+                          selected === index
+                            ? "bg-primary/10 text-primary"
+                            : "hover:bg-surface-container-low"
+                        }`}
+                      >
+                        <span className="font-medium">
+                          {command.label}
+                        </span>
+
+                        <span className="rounded-md border border-outline-variant bg-surface-container-low px-2 py-1 text-[10px] text-outline">
+                          Enter
+                        </span>
+                      </button>
+                    )
+                  )}
+                </div>
               )
             )
           )}
         </div>
       </div>
+
+    <div
+      className="hidden"
+      data-indexed-commands={
+        commandIndex.length
+      }
+      data-filtered-commands={
+        filteredCommands.length
+      }
+    />
+      
     </div>
   );
 }
