@@ -56,6 +56,59 @@ function getUnreadCount(
   );
 }
 
+function isDuplicateNotification(
+  id: number,
+  processedNotifications: Set<number>,
+  timestamps: Map<number, number>
+) {
+  const now = Date.now();
+
+  const lastSeen =
+    timestamps.get(id) ?? 0;
+
+  if (
+    processedNotifications.has(id) &&
+    now - lastSeen < 5000
+  ) {
+    return true;
+  }
+
+  processedNotifications.add(id);
+  timestamps.set(id, now);
+
+  return false;
+}
+
+function reconcileNotificationUpdates(
+  current: Notification[],
+  incoming: Notification
+) {
+  const existingIndex =
+    current.findIndex(
+      (notification) =>
+        notification.id ===
+        incoming.id
+    );
+
+  if (existingIndex === -1) {
+    return [
+      incoming,
+      ...current,
+    ];
+  }
+
+  return current.map(
+    (notification) =>
+      notification.id ===
+      incoming.id
+        ? {
+            ...notification,
+            ...incoming,
+          }
+        : notification
+  );
+}
+
 export default function NotificationsPanel() {
   const [open, setOpen] = useState(false);
   const router = useRouter();
@@ -72,42 +125,13 @@ export default function NotificationsPanel() {
       null
     );
 
-  // Fetch real notifications from Supabase projects table
-  useEffect(() => {
-    const fetchNotifications = async () => {
-      try {
-        if (!supabase) { setLoading(false); return; }
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) { setLoading(false); return; }
+    const processedNotificationsRef =
+      useRef<Set<number>>(new Set());
 
-        const { data, error } = await supabase
-          .from("projects")
-          .select("id, name, created_at")
-          .order("created_at", { ascending: false })
-          .limit(5);
-
-        if (!error && data && data.length > 0) {
-          const realNotifications: Notification[] = data.map(
-            (project, index) => ({
-              id: index + 1,
-              title: "Project created",
-              description: `"${project.name}" was created.`,
-              time: new Date(project.created_at).toLocaleDateString(),
-              unread: index === 0,
-              href: "/projects",
-            })
-          );
-          setNotifications(realNotifications);
-        }
-      } catch (err) {
-        console.error("Failed to fetch notifications:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchNotifications();
-  }, []);
+    const lastNotificationTimeRef =
+      useRef<Map<number, number>>(
+        new Map()
+      );
 
   useEffect(() => {
     function handleOutsideClick(
@@ -150,6 +174,46 @@ export default function NotificationsPanel() {
       window.removeEventListener(
         "keydown",
         handleEscape
+      );
+    };
+  }, []);
+
+  useEffect(() => {
+    const simulatedRealtimeUpdate =
+      window.setInterval(() => {
+        const incomingNotification: Notification = {
+          id: 2,
+          title:
+            "New chat message",
+          description:
+            "Alex sent a new team message.",
+          time: "Just now",
+          unread: true,
+          href: "/chat",
+        };
+
+        if (
+          isDuplicateNotification(
+            incomingNotification.id,
+            processedNotificationsRef.current,
+            lastNotificationTimeRef.current
+          )
+        ) {
+          return;
+        }
+
+        setNotifications(
+          (current) =>
+            reconcileNotificationUpdates(
+              current,
+              incomingNotification
+            )
+        );
+      }, 15000);
+
+    return () => {
+      window.clearInterval(
+        simulatedRealtimeUpdate
       );
     };
   }, []);
