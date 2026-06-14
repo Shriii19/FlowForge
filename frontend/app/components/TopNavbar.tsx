@@ -2,16 +2,54 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useMemo } from "react";
 
 import NotificationsPanel from "./NotificationsPanel";
+
+const NAVIGATION_ITEMS = [
+  {
+    href: "/projects",
+    label: "Projects",
+    match: "/projects",
+  },
+  {
+    href: "/dashboard",
+    label: "Dashboard",
+    match: "/dashboard",
+  },
+  {
+    href: "/insights/overview",
+    label: "Insights",
+    match: "/insights",
+  },
+] as const;
 
 export default function TopNavbar() {
   const pathname = usePathname();
 
+  const navigationItems = useMemo(() => {
+    return NAVIGATION_ITEMS.map((item) => ({
+      ...item,
+      isActive: pathname.startsWith(item.match),
+    }));
+  }, [pathname]);
+
+  const activeRouteLabel = useMemo(() => {
+    return (
+      navigationItems.find(
+        (item) => item.isActive
+      )?.label ?? "Home"
+    );
+  }, [navigationItems]);
+
+  const profileImage = useMemo(
+    () => "https://i.pravatar.cc/80?img=32",
+    []
+  );
+
   return (
     <header className="h-20 border-b border-outline-variant bg-white">
       <div className="flex h-full items-center justify-between px-8">
-
         {/* Left Side */}
         <div className="flex items-center gap-10">
           <Link
@@ -22,44 +60,38 @@ export default function TopNavbar() {
           </Link>
 
           <nav className="hidden items-center gap-8 md:flex">
-            <Link
-              href="/projects"
-              className={`pb-1 text-sm transition-colors ${
-                pathname.startsWith("/projects")
-                  ? "border-b-2 border-primary font-semibold text-primary"
-                  : "text-on-surface-variant hover:text-primary"
-              }`}
-            >
-              Projects
-            </Link>
-
-            <Link
-              href="/dashboard"
-              className={`pb-1 text-sm transition-colors ${
-                pathname.startsWith("/dashboard")
-                  ? "border-b-2 border-primary font-semibold text-primary"
-                  : "text-on-surface-variant hover:text-primary"
-              }`}
-            >
-              Dashboard
-            </Link>
-
-            <Link
-              href="/insights/overview"
-              className={`pb-1 text-sm transition-colors ${
-                pathname.startsWith("/insights")
-                  ? "border-b-2 border-primary font-semibold text-primary"
-                  : "text-on-surface-variant hover:text-primary"
-              }`}
-            >
-              Insights
-            </Link>
+            {navigationItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`pb-1 text-sm transition-colors ${
+                  item.isActive
+                    ? "border-b-2 border-primary font-semibold text-primary"
+                    : "text-on-surface-variant hover:text-primary"
+                }`}
+              >
+                {item.label}
+              </Link>
+            ))}
           </nav>
         </div>
 
         {/* Right Side */}
         <div className="flex items-center gap-5">
           <NotificationsPanel />
+
+          <span
+            className="
+              hidden lg:inline-flex
+              rounded-full
+              bg-surface-container-low
+              px-3 py-1
+              text-xs
+              font-medium
+            "
+          >
+            {activeRouteLabel}
+          </span>
 
           <button
             className="
@@ -77,7 +109,7 @@ export default function TopNavbar() {
 
           <img
             alt="User profile"
-            src="https://i.pravatar.cc/80?img=32"
+            src={profileImage}
             className="
               h-10 w-10 rounded-full
               border border-outline-variant
