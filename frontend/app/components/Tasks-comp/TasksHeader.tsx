@@ -1,8 +1,32 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
+
+const HEADER_ACTIONS = [
+  {
+    id: "notifications",
+    icon: "notifications",
+    ariaLabel: "Notifications",
+  },
+] as const;
 
 export default function TasksHeader() {
+  const profileImage = useMemo(
+    () =>
+      "https://lh3.googleusercontent.com/aida-public/AB6AXuCkg4vnO8f5CYXs98lXGmEBvpJyvEeFPY6KpI0D_WhJwkurBhewAXswpL7cAddlTuhyR3U9Yk7rCC4QV5tyDr0o5el9lVbLOgvEy_qlV0DyU9TlHmMDHO4uZFtQcTplFQsXMmQOR-dZXVcZUPmKq_m27_2QK0GkIeecDTElHOJNFY7pLXTxpxz2cAsyUuYpFz_aAdJmFIESRW7TrFVHQ8zx3z2-_8VPIKY6tZawlDn4j6nMx6noasR9sKFo1YvfhZp-qJ3HPbjktw5E",
+    []
+  );
+
+  const searchPlaceholder = useMemo(
+    () => "Search tasks...",
+    []
+  );
+
+  const headerTitle = useMemo(
+    () => "Flow Insights",
+    []
+  );
+
   return (
     <header
       className="
@@ -16,7 +40,7 @@ export default function TasksHeader() {
       {/* Page Title */}
       <div className="flex items-center">
         <h1 className="font-headline-md text-[26px] font-bold text-on-surface">
-          Flow Insights
+          {headerTitle}
         </h1>
       </div>
 
@@ -37,7 +61,7 @@ export default function TasksHeader() {
 
           <input
             type="text"
-            placeholder="Search tasks..."
+            placeholder={searchPlaceholder}
             className="
               w-48 border-none bg-transparent
               text-body-md font-body-md
@@ -48,22 +72,26 @@ export default function TasksHeader() {
         </div>
 
         <div className="flex items-center gap-3">
-          <button
-            className="
-              rounded-full p-2.5
-              text-on-surface-variant
-              transition-all
-              hover:bg-surface-container-low
-            "
-          >
-            <span className="material-symbols-outlined text-[22px]">
-              notifications
-            </span>
-          </button>
+          {HEADER_ACTIONS.map((action) => (
+            <button
+              key={action.id}
+              aria-label={action.ariaLabel}
+              className="
+                rounded-full p-2.5
+                text-on-surface-variant
+                transition-all
+                hover:bg-surface-container-low
+              "
+            >
+              <span className="material-symbols-outlined text-[22px]">
+                {action.icon}
+              </span>
+            </button>
+          ))}
 
           <img
             alt="User profile"
-            src="https://lh3.googleusercontent.com/aida-public/AB6AXuCkg4vnO8f5CYXs98lXGmEBvpJyvEeFPY6KpI0D_WhJwkurBhewAXswpL7cAddlTuhyR3U9Yk7rCC4QV5tyDr0o5el9lVbLOgvEy_qlV0DyU9TlHmMDHO4uZFtQcTplFQsXMmQOR-dZXVcZUPmKq_m27_2QK0GkIeecDTElHOJNFY7pLXTxpxz2cAsyUuYpFz_aAdJmFIESRW7TrFVHQ8zx3z2-_8VPIKY6tZawlDn4j6nMx6noasR9sKFo1YvfhZp-qJ3HPbjktw5E"
+            src={profileImage}
             className="
               ml-2 h-9 w-9 rounded-full
               border-2 border-surface shadow-sm
