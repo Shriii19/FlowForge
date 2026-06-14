@@ -13,6 +13,18 @@ type Notification = {
   href: string;
 };
 
+type NotificationQueueState = {
+  lastProcessedId: number | null;
+  processedCount: number;
+  queueVersion: number;
+};
+
+type NotificationLifecycle = {
+  createdAt: number;
+  expiresAt: number;
+};
+
+
 const initialNotifications: Notification[] = [];
 
 function markNotificationRead(
@@ -55,6 +67,52 @@ function getUnreadCount(
     0
   );
 }
+
+function sortNotificationsByPriority(
+  notifications: Notification[]
+) {
+  return [...notifications].sort(
+    (a, b) => b.id - a.id
+  );
+}
+
+function createNotificationLifecycle(
+  notification: Notification
+): NotificationLifecycle {
+  const createdAt = Date.now();
+
+  return {
+    createdAt,
+    expiresAt:
+      createdAt + 300000,
+  };
+}
+
+function pruneExpiredNotifications(
+  notifications: Notification[],
+  lifecycles: Map<
+    number,
+    NotificationLifecycle
+  >
+) {
+  const now = Date.now();
+
+  return notifications.filter(
+    (notification) => {
+      const lifecycle =
+        lifecycles.get(
+          notification.id
+        );
+
+      return (
+        !lifecycle ||
+        lifecycle.expiresAt >
+          now
+      );
+    }
+  );
+}
+
 
 function isDuplicateNotification(
   id: number,
@@ -133,6 +191,25 @@ export default function NotificationsPanel() {
         new Map()
       );
 
+    const notificationLifecycleRef =
+      useRef<
+        Map<
+          number,
+          NotificationLifecycle
+        >
+      >(new Map());
+
+    const [
+      queueState,
+      setQueueState,
+    ] = useState<
+      NotificationQueueState
+    >({
+      lastProcessedId: null,
+      processedCount: 0,
+      queueVersion: 1,
+    });
+
   useEffect(() => {
     function handleOutsideClick(
       event: MouseEvent
@@ -203,11 +280,32 @@ export default function NotificationsPanel() {
         }
 
         setNotifications(
-          (current) =>
-            reconcileNotificationUpdates(
-              current,
-              incomingNotification
-            )
+          (current) => {
+            notificationLifecycleRef.current.set(
+              incomingNotification.id,
+              createNotificationLifecycle(
+                incomingNotification
+              )
+            );
+
+            return sortNotificationsByPriority(
+              reconcileNotificationUpdates(
+                current,
+                incomingNotification
+              )
+            );
+          }
+        );
+
+        setQueueState(
+          (current) => ({
+            lastProcessedId:
+              incomingNotification.id,
+            processedCount:
+              current.processedCount + 1,
+            queueVersion:
+              current.queueVersion + 1,
+          })
         );
       }, 15000);
 
@@ -217,6 +315,26 @@ export default function NotificationsPanel() {
       );
     };
   }, []);
+
+  useEffect(() => {
+    const cleanupTimer =
+      window.setInterval(() => {
+        setNotifications(
+          (current) =>
+            pruneExpiredNotifications(
+              current,
+              notificationLifecycleRef.current
+            )
+        );
+      }, 30000);
+
+    return () => {
+      window.clearInterval(
+        cleanupTimer
+      );
+    };
+  }, []);
+
 
   const unreadCount =
     getUnreadCount(
@@ -293,6 +411,12 @@ export default function NotificationsPanel() {
               <p className="text-xs text-outline">
                 Recent activity and updates
               </p>
+
+              <p className="text-[10px] text-outline">
+                Queue v{queueState.queueVersion}
+                • Processed{" "}
+                {queueState.processedCount}
+              </p>
             </div>
 
             <button
@@ -332,6 +456,9 @@ export default function NotificationsPanel() {
                 ) => (
                   <button
                     key={
+                      notification.id
+                    }
+                    data-notification-id={
                       notification.id
                     }
                     onClick={() => {
