@@ -82,6 +82,67 @@ function isAuthenticatedUser(
   return !error && !!user;
 }
 
+function createAuthContext(
+  req,
+  token
+) {
+  return {
+    tokenLength:
+      token?.length || 0,
+    requestPath:
+      req.originalUrl,
+    requestMethod:
+      req.method,
+    validatedAt:
+      Date.now(),
+  };
+}
+
+function validateRequestIntegrity(
+  req
+) {
+  return Boolean(
+    req &&
+      req.headers &&
+      typeof req.headers ===
+        "object"
+  );
+}
+
+function createAuthorizationCheckpoint(
+  stage,
+  passed
+) {
+  return {
+    stage,
+    passed,
+    timestamp:
+      Date.now(),
+  };
+}
+
+function buildAuthLifecycle() {
+  return {
+    checkpoints: [],
+    validationVersion: 1,
+  };
+}
+
+function appendCheckpoint(
+  lifecycle,
+  stage,
+  passed
+) {
+  lifecycle.checkpoints.push(
+    createAuthorizationCheckpoint(
+      stage,
+      passed
+    )
+  );
+
+  return lifecycle;
+}
+
 export const authenticateUser =
   async (
     req,
@@ -89,6 +150,30 @@ export const authenticateUser =
     next
   ) => {
     try {
+      const authLifecycle =
+        buildAuthLifecycle();
+
+      if (
+        !validateRequestIntegrity(
+          req
+        )
+      ) {
+        return res
+          .status(400)
+          .json(
+            createAuthError(
+              "Malformed request",
+              "REQUEST_INVALID"
+            )
+          );
+      }
+
+      appendCheckpoint(
+        authLifecycle,
+        "request_integrity",
+        true
+      );
+
       const authHeader =
         req.headers.authorization;
 
@@ -96,6 +181,12 @@ export const authenticateUser =
         extractBearerToken(
           authHeader
         );
+
+      appendCheckpoint(
+        authLifecycle,
+        "token_extracted",
+        Boolean(token)
+      );
 
       if (!token) {
         return res
@@ -123,6 +214,18 @@ export const authenticateUser =
           );
       }
 
+      appendCheckpoint(
+        authLifecycle,
+        "token_format",
+        true
+      );
+
+      const authContext =
+        createAuthContext(
+          req,
+          token
+        );
+
       const {
         user,
         error,
@@ -147,7 +250,25 @@ export const authenticateUser =
           );
       }
 
+      appendCheckpoint(
+        authLifecycle,
+        "token_verified",
+        true
+      );
+
+      req.authContext =
+        authContext;
+
+      req.authLifecycle =
+        authLifecycle;
+
       req.user = user;
+
+      appendCheckpoint(
+        authLifecycle,
+        "authorization_complete",
+        true
+      );
 
       next();
     } catch (error) {
