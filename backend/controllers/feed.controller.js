@@ -3,6 +3,74 @@ import supabase from "../config/db.js";
 
 const manualItems = [];
 
+function calculateEngagementScore(
+  item
+) {
+  let score = 0;
+
+  if (item.type === "milestone") {
+    score += 50;
+  }
+
+  if (item.type === "code") {
+    score += 30;
+  }
+
+  if (item.type === "discussion") {
+    score += 20;
+  }
+
+  if (item.progress) {
+    score += item.progress;
+  }
+
+  return score;
+}
+
+function calculateRecencyScore(
+  createdAt
+) {
+  const ageHours =
+    Math.max(
+      1,
+      (Date.now() -
+        new Date(
+          createdAt
+        ).getTime()) /
+        3600000
+    );
+
+  return Math.max(
+    1,
+    Math.round(100 / ageHours)
+  );
+}
+
+function buildRankingMetadata(
+  item
+) {
+  const engagement =
+    calculateEngagementScore(
+      item
+    );
+
+  const recency =
+    calculateRecencyScore(
+      item.createdAt
+    );
+
+  return {
+    ...item,
+    rankingScore:
+      engagement + recency,
+    rankingFactors: {
+      engagement,
+      recency,
+    },
+  };
+}
+
+
 function toRelativeTime(value) {
   if (!value) return "Just now";
 
@@ -125,15 +193,33 @@ function buildFeedItems(tasks = [], messages = []) {
 }
 
 function sortFeedItems(items = []) {
-  return [...items].sort((a, b) => {
-    const aTime =
-      Date.parse(a.createdAt || "") || 0;
+  return items
+    .map(
+      buildRankingMetadata
+    )
+    .sort((a, b) => {
+      if (
+        b.rankingScore !==
+        a.rankingScore
+      ) {
+        return (
+          b.rankingScore -
+          a.rankingScore
+        );
+      }
 
-    const bTime =
-      Date.parse(b.createdAt || "") || 0;
+      const aTime =
+        Date.parse(
+          a.createdAt || ""
+        ) || 0;
 
-    return bTime - aTime;
-  });
+      const bTime =
+        Date.parse(
+          b.createdAt || ""
+        ) || 0;
+
+      return bTime - aTime;
+    });
 }
 
 export const getFeedItems = async (req, res) => {
@@ -170,9 +256,18 @@ export const getFeedItems = async (req, res) => {
     if (tasksError) throw tasksError;
     if (messagesError) throw messagesError;
 
-    const aggregatedItems = sortFeedItems(
-      buildFeedItems(tasks, messages)
-    );
+    const aggregatedItems =
+      sortFeedItems(
+        buildFeedItems(
+          tasks,
+          messages
+        )
+      );
+
+    const feedMetadata =
+      buildFeedMetadata(
+        aggregatedItems
+      );
 
     const items = aggregatedItems.slice(
       offset,
@@ -180,6 +275,8 @@ export const getFeedItems = async (req, res) => {
     );
 
     res.status(200).json({
+      metadata:
+        feedMetadata,
       items,
       pagination: {
         page,
