@@ -1,3 +1,5 @@
+import { useMemo } from "react";
+
 export type TaskHistoryRow = {
   id: string;
   task: string;
@@ -15,7 +17,95 @@ type TaskHistoryTableProps = {
   onQueryChange: (query: string) => void;
 };
 
+type ProcessedHistoryRow = TaskHistoryRow & {
+  normalizedTask: string;
+  normalizedAssignee: string;
+};
+
+type HistoryMetrics = {
+  recordCount: number;
+  uniqueAssignees: number;
+  uniqueStates: number;
+};
+
+function normalizeHistoryRows(
+  rows: TaskHistoryRow[]
+): ProcessedHistoryRow[] {
+  return rows.map((row) => ({
+    ...row,
+    normalizedTask: row.task.toLowerCase(),
+    normalizedAssignee:
+      row.assignee.toLowerCase(),
+  }));
+}
+
+function getVisibleRows(
+  rows: ProcessedHistoryRow[],
+  query: string
+) {
+  const normalizedQuery =
+    query.trim().toLowerCase();
+
+  if (!normalizedQuery) {
+    return rows;
+  }
+
+  return rows.filter(
+    (row) =>
+      row.id
+        .toLowerCase()
+        .includes(normalizedQuery) ||
+      row.normalizedTask.includes(
+        normalizedQuery
+      ) ||
+      row.normalizedAssignee.includes(
+        normalizedQuery
+      )
+  );
+}
+
+function buildHistoryMetrics(
+  rows: ProcessedHistoryRow[]
+): HistoryMetrics {
+  return {
+    recordCount: rows.length,
+    uniqueAssignees: new Set(
+      rows.map(
+        (row) => row.assignee
+      )
+    ).size,
+    uniqueStates: new Set(
+      rows.map(
+        (row) => row.state
+      )
+    ).size,
+  };
+}
+
+
 export default function TaskHistoryTable({ rows, query, onQueryChange }: TaskHistoryTableProps) {
+
+  const processedRows = useMemo(
+    () => normalizeHistoryRows(rows),
+    [rows]
+  );
+
+  const visibleRows = useMemo(
+    () =>
+      getVisibleRows(
+        processedRows,
+        query
+      ),
+    [processedRows, query]
+  );
+
+  const metrics = useMemo(
+    () =>
+      buildHistoryMetrics(
+        processedRows
+      ),
+    [processedRows]
+  );
   return (
     <div className="bg-transparent space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-2">
@@ -89,6 +179,35 @@ export default function TaskHistoryTable({ rows, query, onQueryChange }: TaskHis
         </div>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 px-2">
+        <div className="rounded-xl bg-surface-container-low/40 p-4">
+          <p className="text-xs text-outline">
+            Total Records
+          </p>
+          <p className="text-lg font-bold">
+            {metrics.recordCount}
+          </p>
+        </div>
+
+        <div className="rounded-xl bg-surface-container-low/40 p-4">
+          <p className="text-xs text-outline">
+            Unique Assignees
+          </p>
+          <p className="text-lg font-bold">
+            {metrics.uniqueAssignees}
+          </p>
+        </div>
+
+        <div className="rounded-xl bg-surface-container-low/40 p-4">
+          <p className="text-xs text-outline">
+            Workflow States
+          </p>
+          <p className="text-lg font-bold">
+            {metrics.uniqueStates}
+          </p>
+        </div>
+      </div>
+
       <div className="overflow-hidden">
         <table className="w-full text-left border-collapse">
           <thead>
@@ -101,7 +220,7 @@ export default function TaskHistoryTable({ rows, query, onQueryChange }: TaskHis
             </tr>
           </thead>
           <tbody className="bg-transparent">
-            {rows.map((row) => (
+            {visibleRows.map((row) => (
               <tr key={row.id} className="group hover:bg-surface-container-low/30 transition-all duration-300">
                 <td className="pl-8 pr-4 py-8">
                   <div className="flex items-center gap-5">
@@ -137,7 +256,7 @@ export default function TaskHistoryTable({ rows, query, onQueryChange }: TaskHis
                 </td>
               </tr>
             ))}
-            {rows.length === 0 && (
+            {visibleRows.length === 0 && (
               <tr>
                 <td className="px-8 py-10 text-center text-on-surface-variant" colSpan={5}>
                   No task journey records match the current search.
@@ -149,7 +268,7 @@ export default function TaskHistoryTable({ rows, query, onQueryChange }: TaskHis
       </div>
 
       <div className="flex justify-between items-center px-8 py-8 border-t border-outline-variant/10">
-        <p className="font-data-viz text-[12px] text-outline">Showing {rows.length} backend journey records</p>
+        <p className="font-data-viz text-[12px] text-outline">Showing {visibleRows.length} backend journey records</p>
       </div>
     </div>
   );
