@@ -2,7 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState,
+  useMemo,
+  useCallback,
+} from "react";
 import {
   LayoutDashboard,
   FolderKanban,
@@ -10,6 +15,18 @@ import {
   MessageSquare,
   BarChart3,
 } from "lucide-react";
+
+type NavigationItem = {
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+};
+
+type NavigationItemState =
+  NavigationItem & {
+    isActive: boolean;
+    className: string;
+  };
 
 function getNavigationState(
   pathname: string,
@@ -29,38 +46,8 @@ function getNavigationState(
   };
 }
 
-export default function Sidebar() {
-  const pathname = usePathname();
-
-  const [activePath, setActivePath] =
-    useState(pathname);
-
-  useEffect(() => {
-    setActivePath(pathname);
-
-    if (pathname) {
-      sessionStorage.setItem(
-        "sidebar-active-route",
-        pathname
-      );
-    }
-  }, [pathname]);
-
-  useEffect(() => {
-    const persistedPath =
-      sessionStorage.getItem(
-        "sidebar-active-route"
-      );
-
-    if (
-      persistedPath &&
-      !activePath
-    ) {
-      setActivePath(persistedPath);
-    }
-  }, []);
-
-  const navItems = [
+const NAVIGATION_ITEMS: NavigationItem[] =
+  [
     {
       href: "/dashboard",
       label: "Dashboard",
@@ -88,6 +75,88 @@ export default function Sidebar() {
     },
   ];
 
+function persistActiveRoute(
+  pathname: string
+) {
+  sessionStorage.setItem(
+    "sidebar-active-route",
+    pathname
+  );
+}
+
+function getPersistedRoute() {
+  return sessionStorage.getItem(
+    "sidebar-active-route"
+  );
+}
+
+function buildNavigationItems(
+  pathname: string
+): NavigationItemState[] {
+  return NAVIGATION_ITEMS.map(
+    (item) => {
+      const state =
+        getNavigationState(
+          pathname,
+          item.href
+        );
+
+      return {
+        ...item,
+        isActive:
+          state.isActive,
+        className:
+          state.className,
+      };
+    }
+  );
+}
+
+export default function Sidebar() {
+  const pathname = usePathname();
+
+  const [activePath, setActivePath] =
+    useState(pathname);
+
+  const saveActiveRoute =
+    useCallback(
+      (pathname: string) => {
+        persistActiveRoute(
+          pathname
+        );
+      },
+      []
+    );
+
+  useEffect(() => {
+    setActivePath(pathname);
+
+    if (pathname) {
+      saveActiveRoute(pathname);
+    }
+  }, [pathname, saveActiveRoute]);
+
+  useEffect(() => {
+    const persistedPath =
+      getPersistedRoute();
+
+    if (
+      persistedPath &&
+      !activePath
+    ) {
+      setActivePath(persistedPath);
+    }
+  }, []);
+
+  const navigationItems =
+    useMemo(
+      () =>
+        buildNavigationItems(
+          activePath
+        ),
+      [activePath]
+    );
+
   return (
     <aside className="panel sticky top-0 z-20 m-2 mb-0 w-[140px] p-3 sm:m-4 sm:w-[180px] md:m-6 md:mb-6 md:h-[calc(100vh-3rem)] md:w-64 md:p-4">
       <div className="mb-4 flex items-center justify-between md:mb-6 md:block">
@@ -101,31 +170,28 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex flex-col gap-2">
-        {navItems.map((item) => {
-          const Icon = item.icon;
+        {navigationItems.map(
+          (item) => {
+            const Icon =
+              item.icon;
 
-          const navigationState =
-            getNavigationState(
-              activePath,
-              item.href
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={
+                  item.className
+                }
+              >
+                <Icon size={16} />
+
+                <span className="text-sm font-medium">
+                  {item.label}
+                </span>
+              </Link>
             );
-
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={
-                navigationState.className
-              }
-            >
-              <Icon size={16} />
-
-              <span className="text-sm font-medium">
-                {item.label}
-              </span>
-            </Link>
-          );
-        })}
+          }
+        )}
       </nav>
     </aside>
   );
