@@ -16,6 +16,59 @@ function impactScore(member: MemberPerformance) {
   return Number((member.completed * 0.8 + member.reviews * 1.6).toFixed(1));
 }
 
+type RankedMember = MemberPerformance & {
+  rank: number;
+  score: number;
+};
+
+function compareMembers(
+  a: MemberPerformance,
+  b: MemberPerformance,
+  sortKey: LeaderboardSortKey
+) {
+  if (sortKey === "score") {
+    const scoreDifference =
+      impactScore(b) - impactScore(a);
+
+    if (scoreDifference !== 0) {
+      return scoreDifference;
+    }
+  } else {
+    const metricDifference =
+      b[sortKey] - a[sortKey];
+
+    if (metricDifference !== 0) {
+      return metricDifference;
+    }
+  }
+
+  if (b.completed !== a.completed) {
+    return b.completed - a.completed;
+  }
+
+  if (b.reviews !== a.reviews) {
+    return b.reviews - a.reviews;
+  }
+
+  return a.name.localeCompare(b.name);
+}
+
+function buildRankedLeaderboard(
+  members: MemberPerformance[],
+  sortKey: LeaderboardSortKey
+): RankedMember[] {
+  const sortedMembers = [...members].sort(
+    (a, b) => compareMembers(a, b, sortKey)
+  );
+
+  return sortedMembers.map((member, index) => ({
+    ...member,
+    rank: index + 1,
+    score: impactScore(member),
+  }));
+}
+
+
 export default function SprintLeaderboard({
   sprint,
   members,
@@ -23,10 +76,10 @@ export default function SprintLeaderboard({
   onSortChange,
 }: SprintLeaderboardProps) {
   const sortedRows = useMemo(() => {
-    return [...members].sort((a, b) => {
-      if (sortKey === "score") return impactScore(b) - impactScore(a);
-      return b[sortKey] - a[sortKey];
-    });
+    return buildRankedLeaderboard(
+      members,
+      sortKey
+    );
   }, [members, sortKey]);
 
   return (
@@ -78,7 +131,7 @@ export default function SprintLeaderboard({
               {sortedRows.map((row, index) => (
                 <tr key={row.id} className="border-b border-outline-variant/50 hover:bg-surface-container-low transition-colors">
                   <td className="px-card-padding py-4 font-bold text-primary">
-                    {(index + 1).toString().padStart(2, "0")}
+                    {row.rank.toString().padStart(2, "0")}
                   </td>
                   <td className="px-card-padding py-4">
                     <div className="flex items-center gap-3">
@@ -91,7 +144,7 @@ export default function SprintLeaderboard({
                   </td>
                   <td className="px-card-padding py-4 font-data-viz">{row.completed}</td>
                   <td className="px-card-padding py-4 font-data-viz">{row.reviews}</td>
-                  <td className="px-card-padding py-4 text-right font-bold text-primary">{impactScore(row)}</td>
+                  <td className="px-card-padding py-4 text-right font-bold text-primary">{row.score}</td>
                 </tr>
               ))}
               {sortedRows.length === 0 && (
