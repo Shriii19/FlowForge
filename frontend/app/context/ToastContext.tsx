@@ -5,6 +5,8 @@ import {
   useContext,
   useState,
   useCallback,
+  useRef,
+  useEffect,
   ReactNode,
 } from "react";
 
@@ -41,15 +43,6 @@ function createToast(
   };
 }
 
-function scheduleToastRemoval(
-  id: number,
-  removeToast: (id: number) => void
-) {
-  return window.setTimeout(() => {
-    removeToast(id);
-  }, 4000);
-}
-
 export function useToast() {
   return useContext(ToastContext);
 }
@@ -62,8 +55,21 @@ export function ToastProvider({
   const [toasts, setToasts] =
     useState<Toast[]>([]);
 
+  const toastTimersRef =
+    useRef<
+      Map<number, NodeJS.Timeout>
+    >(new Map());
+
   const removeToast = useCallback(
     (id: number) => {
+      const timer =
+        toastTimersRef.current.get(id);
+
+      if (timer) {
+        clearTimeout(timer);
+        toastTimersRef.current.delete(id);
+      }
+
       setToasts((prev) =>
         prev.filter(
           (toast) => toast.id !== id
@@ -72,6 +78,31 @@ export function ToastProvider({
     },
     []
   );
+
+  const registerToastLifecycle =
+    useCallback(
+      (id: number) => {
+        const existingTimer =
+          toastTimersRef.current.get(id);
+
+        if (existingTimer) {
+          clearTimeout(
+            existingTimer
+          );
+        }
+
+        const timer: NodeJS.Timeout =
+          setTimeout(() => {
+            removeToast(id);
+          }, 4000);
+
+        toastTimersRef.current.set(
+          id,
+          timer
+        );
+      },
+      [removeToast]
+    );
 
   const showToast = useCallback(
     (
@@ -105,21 +136,48 @@ export function ToastProvider({
         ];
 
         if (
-          updated.length > MAX_TOASTS
+          updated.length >
+          MAX_TOASTS
         ) {
-          updated.shift();
+          const removedToast =
+            updated.shift();
+
+          if (removedToast) {
+            const timer =
+              toastTimersRef.current.get(
+                removedToast.id
+              );
+
+            if (timer) {
+              clearTimeout(
+                timer
+              );
+
+              toastTimersRef.current.delete(
+                removedToast.id
+              );
+            }
+          }
         }
 
         return updated;
       });
 
-      scheduleToastRemoval(
-        id,
-        removeToast
-      );
+      registerToastLifecycle(id);
     },
-    [removeToast]
+    [registerToastLifecycle]
   );
+
+  useEffect(() => {
+    return () => {
+      toastTimersRef.current.forEach(
+        (timer) =>
+          clearTimeout(timer)
+      );
+
+      toastTimersRef.current.clear();
+    };
+  }, []);
 
   return (
     <ToastContext.Provider
