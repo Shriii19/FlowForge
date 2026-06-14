@@ -48,6 +48,10 @@ export function KanbanBoard() {
   const socketRef = useRef<ReturnType<typeof io> | null>(null);
   const isSyncingRef = useRef(false);
 
+  const dragOperationRef = useRef<string | null>(null);
+  const previousTasksRef = useRef<Task[]>([]);
+  const lastSocketUpdateRef = useRef<Map<string, number>>(new Map());
+
   const handleEditTask = async (task: Task) => {
   const newTitle = window.prompt("Edit title:", task.title);
   if (!newTitle) return;
@@ -107,37 +111,61 @@ export function KanbanBoard() {
     }, 0);
 
       newSocket.on("task-moved", (movedTask: Task) => {
-        if (isSyncingRef.current) return;
-      setTasks((prev) => {
-        const existing = prev.find((t) => t.id === movedTask.id);
-        let newTasks;
-        if (existing) {
-          newTasks = prev.map((t) => (t.id === movedTask.id ? movedTask : t));
-        } else {
-          newTasks = [...prev, movedTask];
+        if (
+          isSyncingRef.current ||
+          isDuplicateRealtimeUpdate(movedTask)
+        ) {
+          return;
         }
-        return newTasks.sort((a, b) => a.position - b.position);
+
+        setTasks((prev) => {
+          const updatedTasks = prev.some(
+            (task) => task.id === movedTask.id
+          )
+            ? prev.map((task) =>
+                task.id === movedTask.id
+                  ? movedTask
+                  : task
+              )
+            : [...prev, movedTask];
+
+          return normalizeColumnPositions(
+            updatedTasks
+          );
+        });
       });
-    });
+        newSocket.on("task-created", (newTask: Task) => {
+          setTasks((prev) =>
+            [...prev, newTask].sort(
+              (a, b) => a.position - b.position
+            )
+          );
+        });
 
-    newSocket.on("task-created", (newTask: Task) => {
-      setTasks((prev) => [...prev, newTask].sort((a, b) => a.position - b.position));
-    });
+        newSocket.on("task-updated", (updatedTask: Task) => {
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === updatedTask.id
+                ? updatedTask
+                : t
+            )
+          );
+        });
 
-    newSocket.on("task-updated", (updatedTask: Task) => {
-      setTasks((prev) => prev.map((t) => (t.id === updatedTask.id ? updatedTask : t)));
-    });
+        newSocket.on("task-deleted", (taskId: string) => {
+          setTasks((prev) =>
+            prev.filter((t) => t.id !== taskId)
+          );
+        });
 
-    newSocket.on("task-deleted", (taskId: string) => {
-      setTasks((prev) => prev.filter((t) => t.id !== taskId));
-    });
+        return () => {
+          window.clearTimeout(loadTimer);
+          newSocket.disconnect();
+          socketRef.current = null;
+        };
+        }, []);
 
-    return () => {
-      window.clearTimeout(loadTimer);
-      newSocket.disconnect();
-      socketRef.current = null;
-    };
-  }, []);
+
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -150,10 +178,27 @@ export function KanbanBoard() {
     })
   );
 
-  const handleDragStart = (event: DragStartEvent) => {
-    const { active } = event;
-    const task = tasks.find((t) => t.id === active.id);
-    if (task) setActiveTask(task);
+  const handleDragStart = (
+    event: DragStartEvent
+  ) => {
+    if (dragOperationRef.current) {
+      return;
+    }
+
+    dragOperationRef.current = String(
+      event.active.id
+    );
+
+    previousTasksRef.current =
+      createTaskSnapshot(tasks);
+
+    const task = tasks.find(
+      (t) => t.id === event.active.id
+    );
+
+    if (task) {
+      setActiveTask(task);
+    }
   };
 
   const handleDragOver = (event: DragOverEvent) => {
@@ -200,16 +245,6 @@ export function KanbanBoard() {
     }
   };
 
-  function hasTaskPositionChanged(
-    task: Task,
-    newStatus: TaskStatus,
-    newPosition: number
-  ) {
-    return (
-      task.status !== newStatus ||
-      task.position !== newPosition
-    );
-  }
 
   function reconcileTaskPositions(
     tasks: Task[],
@@ -236,6 +271,43 @@ export function KanbanBoard() {
     );
   }
 
+  function createTaskSnapshot(tasks: Task[]) {
+    return tasks.map((task) => ({ ...task }));
+  }
+
+  function rollbackTaskState() {
+    setTasks(previousTasksRef.current);
+  }
+
+  function isDuplicateRealtimeUpdate(task: Task) {
+    const now = Date.now();
+
+    const lastUpdate =
+      lastSocketUpdateRef.current.get(task.id) ?? 0;
+
+    if (now - lastUpdate < 500) {
+      return true;
+    }
+
+    lastSocketUpdateRef.current.set(task.id, now);
+
+    return false;
+  }
+
+  function normalizeColumnPositions(
+    taskList: Task[]
+  ) {
+    return COLUMNS.flatMap((column) =>
+      taskList
+        .filter((task) => task.status === column.id)
+        .sort((a, b) => a.position - b.position)
+        .map((task, index) => ({
+          ...task,
+          position: index,
+        }))
+    );
+  }
+
   const handleDragEnd = async (event: DragEndEvent) => {
     if (isSyncingRef.current) return;
 
@@ -244,6 +316,7 @@ export function KanbanBoard() {
 
   const { active, over } = event;
   if (!over) {
+    dragOperationRef.current = null;
     isSyncingRef.current = false;
     return;
   }
@@ -253,6 +326,7 @@ export function KanbanBoard() {
 
   const activeTask = tasks.find((t) => t.id === activeId);
   if (!activeTask) {
+    dragOperationRef.current = null;
     isSyncingRef.current = false;
     return;
   }
@@ -261,6 +335,7 @@ export function KanbanBoard() {
 
   if (over.data.current?.type === "Column") {
     if (!isTaskStatus(over.id)) {
+      dragOperationRef.current = null;
       isSyncingRef.current = false;
       return;
     }
@@ -306,6 +381,7 @@ export function KanbanBoard() {
     });
 
     if (reorderedTasks.length === 0) {
+      dragOperationRef.current = null;
       isSyncingRef.current = false;
       return;
     }
@@ -362,10 +438,18 @@ export function KanbanBoard() {
 
     }
   } catch (error) {
-    console.error("Failed to update task positions", error);
+    rollbackTaskState();
+
+    console.error(
+      "Failed to update task positions",
+      error
+    );
+
     isSyncingRef.current = false;
   }
+  dragOperationRef.current = null;
   isSyncingRef.current = false;
+  setActiveTask(null);
 };
 
     
