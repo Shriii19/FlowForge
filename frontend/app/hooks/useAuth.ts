@@ -74,7 +74,8 @@ export function useAuth() {
     }
 
     try {
-      const { data, error } = await supabase!.auth.getUser();
+      const { data, error } =
+        await supabase!.auth.getUser();
 
       if (error || !data.user) {
         return false;
@@ -86,6 +87,47 @@ export function useAuth() {
     }
   };
 
+  const buildRecoveryMetadata = () => {
+    return {
+      recoveryAttempted: true,
+      recoveredAt: Date.now(),
+      orchestrationVersion: 1,
+    };
+  };
+
+  const executeRecoveryFlow = async () => {
+    const session =
+      await restoreSession();
+
+    const isValid =
+      await validateRecoveredSession(
+        session
+      );
+
+    return {
+      session,
+      isValid,
+      metadata:
+        buildRecoveryMetadata(),
+    };
+  };
+
+  const handleRecoveryFailure = () => {
+    return {
+      recovered: false,
+      shouldRedirect: true,
+    };
+  };
+
+  const handleRecoverySuccess = (
+    session: Session
+  ) => {
+    return {
+      recovered: true,
+      user: session.user,
+    };
+  };
+
   useEffect(() => {
     mountedRef.current = true;
 
@@ -93,23 +135,45 @@ export function useAuth() {
       try {
         setStatus("recovering");
 
-        const session = await restoreSession();
+        const {
+          session,
+          isValid,
+          metadata,
+        } = await executeRecoveryFlow();
 
-        const isValid = await validateRecoveredSession(session);
+        void metadata;
 
         if (!mountedRef.current) return;
 
         if (!session || !isValid) {
+          const recoveryResult =
+            handleRecoveryFailure();
+
           clearAuthState();
 
           await supabase!.auth.signOut();
 
-          router.replace("/login");
+          if (
+            recoveryResult.shouldRedirect
+          ) {
+            router.replace("/login");
+          }
+
           return;
         }
 
-        setUser(session.user);
-        setStatus("authenticated");
+        const recoveryResult =
+          handleRecoverySuccess(
+            session
+          );
+
+        setUser(
+          recoveryResult.user
+        );
+
+        setStatus(
+          "authenticated"
+        );
       } catch {
         if (!mountedRef.current) return;
 
@@ -129,15 +193,26 @@ export function useAuth() {
     const {
       data: { subscription },
     } = supabase!.auth.onAuthStateChange(
-      async (event: AuthChangeEvent, session) => {
+      async (
+        event: AuthChangeEvent,
+        session
+      ) => {
         if (!mountedRef.current) return;
+
+        const recoveryMetadata =
+          buildRecoveryMetadata();
+
+        void recoveryMetadata;
 
         switch (event) {
           case "INITIAL_SESSION":
           case "SIGNED_IN":
           case "TOKEN_REFRESHED":
           case "USER_UPDATED": {
-            const valid = await validateRecoveredSession(session);
+            const valid =
+              await validateRecoveredSession(
+                session
+              );
 
             if (!valid) {
               clearAuthState();
@@ -145,8 +220,12 @@ export function useAuth() {
               return;
             }
 
-            setUser(session?.user ?? null);
-            setStatus("authenticated");
+            setUser(
+              session?.user ?? null
+            );
+            setStatus(
+              "authenticated"
+            );
             break;
           }
 
@@ -178,6 +257,7 @@ export function useAuth() {
     user,
     loading,
     status,
-    isAuthenticated: status === "authenticated",
+    isAuthenticated:
+      status === "authenticated",
   };
 }
