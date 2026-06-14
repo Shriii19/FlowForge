@@ -2,6 +2,47 @@ const projectCache = new Map();
 
 const CACHE_TTL = 30000;
 
+const PAYLOAD_VERSION = 1;
+
+function normalizeProject(project) {
+  return {
+    id: project?.id ?? null,
+    name: project?.name ?? "",
+    description:
+      project?.description ?? "",
+    status:
+      project?.status ?? "unknown",
+    createdAt:
+      project?.createdAt ?? null,
+    updatedAt:
+      project?.updatedAt ?? null,
+  };
+}
+
+function serializeProjectPayload(
+  payload,
+  source
+) {
+  return {
+    version: PAYLOAD_VERSION,
+    source,
+    generatedAt:
+      new Date().toISOString(),
+    data: payload,
+  };
+}
+
+function validatePayloadIntegrity(
+  payload
+) {
+  return (
+    payload &&
+    typeof payload === "object" &&
+    "version" in payload &&
+    "data" in payload
+  );
+}
+
 export async function getProjectById(
   projectId,
   fetchProject
@@ -20,12 +61,28 @@ export async function getProjectById(
   const project =
     await fetchProject(projectId);
 
+  const payload =
+    serializeProjectPayload(
+      normalizeProject(project),
+      "project-by-id"
+    );
+
+  if (
+    !validatePayloadIntegrity(
+      payload
+    )
+  ) {
+    throw new Error(
+      "Invalid project payload"
+    );
+  }
+
   projectCache.set(projectId, {
-    data: project,
+    data: payload,
     timestamp: Date.now(),
   });
 
-  return project;
+  return payload;
 }
 
 export async function getProjects(
@@ -48,12 +105,30 @@ export async function getProjects(
   const projects =
     await fetchProjects();
 
+  const payload =
+    serializeProjectPayload(
+      projects.map(
+        normalizeProject
+      ),
+      "project-list"
+    );
+
+  if (
+    !validatePayloadIntegrity(
+      payload
+    )
+  ) {
+    throw new Error(
+      "Invalid projects payload"
+    );
+  }
+
   projectCache.set(cacheKey, {
-    data: projects,
+    data: payload,
     timestamp: Date.now(),
   });
 
-  return projects;
+  return payload;
 }
 
 export function invalidateProjectCache(
@@ -65,6 +140,28 @@ export function invalidateProjectCache(
 
   projectCache.delete(
     "all-projects"
+  );
+}
+
+export function getProjectCacheMetrics() {
+  return {
+    entries:
+      projectCache.size,
+    cacheKeys: Array.from(
+      projectCache.keys()
+    ),
+    payloadVersion:
+      PAYLOAD_VERSION,
+  };
+}
+
+export function validateCachedPayloads() {
+  return Array.from(
+    projectCache.values()
+  ).every((entry) =>
+    validatePayloadIntegrity(
+      entry.data
+    )
   );
 }
 
