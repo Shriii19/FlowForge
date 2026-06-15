@@ -22,6 +22,17 @@ type LayoutMetrics = {
   navbarVisible: boolean;
 };
 
+type LayoutRecoveryState =
+  | "healthy"
+  | "recovering"
+  | "fallback";
+
+type LayoutDiagnostics = {
+  recoveryAttempts: number;
+  fallbackActivations: number;
+  renderFailures: number;
+};
+
 function getLayoutState(
   pathname: string | null
 ) {
@@ -66,6 +77,39 @@ function buildLayoutMetrics(
   };
 }
 
+function createLayoutDiagnostics(): LayoutDiagnostics {
+  return {
+    recoveryAttempts: 0,
+    fallbackActivations: 0,
+    renderFailures: 0,
+  };
+}
+
+function validateLayoutChildren(
+  children: React.ReactNode
+) {
+  return (
+    children !== null &&
+    children !== undefined
+  );
+}
+
+function buildFallbackContent() {
+  return (
+    <div className="flex h-full items-center justify-center p-10 text-center">
+      <div>
+        <h2 className="text-lg font-semibold">
+          Layout Recovery Active
+        </h2>
+
+        <p className="text-sm text-slate-500">
+          Recovering from a rendering issue.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function shouldRenderSidebar(
   hideSidebar: boolean
 ) {
@@ -93,6 +137,21 @@ export default function AppShell({
     useState<LayoutRenderState>(
       "idle"
     );
+
+  const [
+    recoveryState,
+    setRecoveryState,
+  ] =
+    useState<LayoutRecoveryState>(
+      "healthy"
+    );
+
+  const [
+    diagnostics,
+    setDiagnostics,
+  ] = useState(
+    createLayoutDiagnostics()
+  );
 
   const {
     isPublicRoute,
@@ -142,6 +201,32 @@ export default function AppShell({
       ]
     );
 
+  const shouldUseFallback =
+    !validateLayoutChildren(
+      children
+    );
+
+  useEffect(() => {
+    if (shouldUseFallback) {
+      setRecoveryState(
+        "fallback"
+      );
+
+      setDiagnostics(
+        (current) => ({
+          ...current,
+          fallbackActivations:
+            current.fallbackActivations +
+            1,
+        })
+      );
+    } else {
+      setRecoveryState(
+        "healthy"
+      );
+    }
+  }, [shouldUseFallback]);
+
   return (
     <div className="flex min-h-screen w-full bg-[#f5f7f2]">
       <CommandPalette />
@@ -164,7 +249,9 @@ export default function AppShell({
             mainClass
           }
         >
-          {children}
+          {shouldUseFallback
+            ? buildFallbackContent()
+            : children}
         </main>
       </div>
 
@@ -181,6 +268,18 @@ export default function AppShell({
         }
         data-navbar-visible={
           layoutMetrics.navbarVisible
+        }
+        data-recovery-state={
+          recoveryState
+        }
+        data-recovery-attempts={
+          diagnostics.recoveryAttempts
+        }
+        data-fallback-activations={
+          diagnostics.fallbackActivations
+        }
+        data-render-failures={
+          diagnostics.renderFailures
         }
       />
     </div>
