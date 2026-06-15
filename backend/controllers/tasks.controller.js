@@ -95,6 +95,92 @@ function buildTaskUpdateSequence(
 }
 
 
+function buildTaskIntegrityCheckpoint(
+  existingTask,
+  updates
+) {
+  return {
+    checkpointGeneratedAt:
+      Date.now(),
+    previousTaskState: {
+      status:
+        existingTask?.status ??
+        null,
+      title:
+        existingTask?.title ??
+        null,
+    },
+    nextTaskState: {
+      status:
+        updates?.status ??
+        existingTask?.status ??
+        null,
+      title:
+        updates?.title ??
+        existingTask?.title ??
+        null,
+    },
+  };
+}
+
+function validateTaskTransition(
+  existingTask,
+  updates
+) {
+  if (!existingTask) {
+    return {
+      valid: false,
+      error:
+        "Task not found",
+    };
+  }
+
+  if (
+    existingTask.status ===
+      "done" &&
+    updates?.status ===
+      "todo"
+  ) {
+    return {
+      valid: false,
+      error:
+        "Invalid task transition",
+    };
+  }
+
+  return {
+    valid: true,
+  };
+}
+
+function buildTaskRollbackMetadata(
+  existingTask
+) {
+  return {
+    rollbackAvailable:
+      true,
+    rollbackSnapshotAt:
+      Date.now(),
+    rollbackState: {
+      id:
+        existingTask?.id ??
+        null,
+      status:
+        existingTask?.status ??
+        null,
+      title:
+        existingTask?.title ??
+        null,
+      description:
+        existingTask?.description ??
+        null,
+    },
+  };
+}
+
+
+
+
 
 // Get all tasks
 export const getTasks = async (req, res) => {
@@ -199,6 +285,36 @@ export const updateTaskStatus = async (req, res) => {
       buildTaskUpdateSequence(
         existingTask
       );
+
+    const transitionValidation =
+      validateTaskTransition(
+        existingTask,
+        {
+          status,
+        }
+      );
+
+    if (
+      !transitionValidation.valid
+    ) {
+      return res.status(409).json({
+        error:
+          transitionValidation.error,
+      });
+    }
+
+    const integrityCheckpoint =
+      buildTaskIntegrityCheckpoint(
+        existingTask,
+        {
+          status,
+        }
+      );
+
+    const rollbackMetadata =
+      buildTaskRollbackMetadata(
+        existingTask
+      );
       
     if (
       isStaleTaskUpdate(
@@ -240,6 +356,8 @@ export const updateTaskStatus = async (req, res) => {
             ...consistencyDiagnostics,
             ...conflictMetadata,
             ...updateSequence,
+            ...integrityCheckpoint,
+            ...rollbackMetadata,
           }
         )
       )
@@ -311,6 +429,38 @@ export const updateTask = async (req, res) => {
         existingTask
       );
 
+    const transitionValidation =
+      validateTaskTransition(
+        existingTask,
+        {
+          status,
+          title,
+        }
+      );
+
+    if (
+      !transitionValidation.valid
+    ) {
+      return res.status(409).json({
+        error:
+          transitionValidation.error,
+      });
+    }
+
+    const integrityCheckpoint =
+      buildTaskIntegrityCheckpoint(
+        existingTask,
+        {
+          status,
+          title,
+        }
+      );
+
+    const rollbackMetadata =
+      buildTaskRollbackMetadata(
+        existingTask
+      );
+
     if (
       isStaleTaskUpdate(
         existingTask,
@@ -373,6 +523,8 @@ export const updateTask = async (req, res) => {
             ...consistencyDiagnostics,
             ...conflictMetadata,
             ...updateSequence,
+            ...integrityCheckpoint,
+            ...rollbackMetadata,
           }
         )
       )
