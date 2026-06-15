@@ -77,6 +77,23 @@ export default function OverviewMain() {
   const lastRefreshRef =
     useRef<number>(0);
 
+  const refreshVersionRef =
+    useRef(0);
+
+  const consistencyCheckRef =
+    useRef<number>(0);
+
+  const [lastSyncedVersion, setLastSyncedVersion] =
+    useState(0);
+
+  const [syncLagMs, setSyncLagMs] =
+    useState(0);
+
+  const [consistencyState, setConsistencyState] =
+    useState<
+      "healthy" | "pending" | "stale"
+    >("healthy");
+
   const [
     refreshState,
     setRefreshState,
@@ -101,6 +118,16 @@ export default function OverviewMain() {
         refreshLockRef.current =
           true;
 
+        const currentVersion =
+          ++refreshVersionRef.current;
+
+        const requestStartedAt =
+          performance.now();
+
+        setConsistencyState(
+          "pending"
+        );
+
         setRefreshState(
           "loading"
         );
@@ -124,7 +151,33 @@ export default function OverviewMain() {
           const body =
             (await response.json()) as OverviewInsights;
 
+          if (
+            currentVersion !==
+            refreshVersionRef.current
+          ) {
+            return;
+          }
+
+          const requestStartedAt =
+            performance.now();
+
           setOverview(body);
+
+          setLastSyncedVersion(
+            currentVersion
+          );
+
+          setSyncLagMs(
+            performance.now() -
+              requestStartedAt
+          );
+
+          consistencyCheckRef.current =
+            Date.now();
+
+          setConsistencyState(
+            "healthy"
+          );
 
           setStatus(
             "Synced with backend insights."
@@ -170,6 +223,28 @@ export default function OverviewMain() {
       controller.abort();
   }, [loadOverview]);
 
+  useEffect(() => {
+    const interval =
+      setInterval(() => {
+        const elapsed =
+          Date.now() -
+          consistencyCheckRef.current;
+
+        if (
+          elapsed > 15000 &&
+          refreshState ===
+            "completed"
+        ) {
+          setConsistencyState(
+            "stale"
+          );
+        }
+      }, 5000);
+
+    return () =>
+      clearInterval(interval);
+  }, [refreshState]);
+
   const overviewMetrics =
     useMemo(
       () =>
@@ -178,6 +253,29 @@ export default function OverviewMain() {
         ),
       [overview]
     );
+
+  const synchronizationHealth =
+    useMemo(() => {
+      return lastSyncedVersion ===
+        refreshVersionRef.current
+        ? "Synchronized"
+        : "Pending Sync";
+    }, [lastSyncedVersion]);
+
+  const consistencySummary =
+    useMemo(() => {
+      return {
+        version:
+          lastSyncedVersion,
+        lag: syncLagMs,
+        state:
+          consistencyState,
+      };
+    }, [
+      lastSyncedVersion,
+      syncLagMs,
+      consistencyState,
+    ]);
 
   return (
     <div className="flex-1">
@@ -198,6 +296,22 @@ export default function OverviewMain() {
 
             <p className="mt-2 text-11px text-primary">
               Refresh State: {refreshState}
+            </p>
+
+            <p className="mt-1 text-11px text-primary">
+              Sync Status: {synchronizationHealth}
+            </p>
+
+            <p className="mt-1 text-11px text-primary">
+              Sync Version: {consistencySummary.version}
+            </p>
+
+            <p className="mt-1 text-11px text-primary">
+              Sync Lag: {consistencySummary.lag}ms
+            </p>
+
+            <p className="mt-1 text-11px text-primary">
+              Consistency: {consistencySummary.state}
             </p>
           </div>
 
@@ -228,6 +342,20 @@ export default function OverviewMain() {
             value={String(
               overviewMetrics.totalActivity
             )}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 mb-8">
+          <StatsCard
+            label="Sync Version"
+            value={String(
+              consistencySummary.version
+            )}
+          />
+
+          <StatsCard
+            label="Sync Lag"
+            value={`${consistencySummary.lag}ms`}
           />
         </div>
 
