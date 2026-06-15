@@ -24,6 +24,18 @@ type NotificationLifecycle = {
   expiresAt: number;
 };
 
+type NotificationDeliveryState = {
+  deliveryVersion: number;
+  duplicateEventsPrevented: number;
+  cleanupCycles: number;
+};
+
+type NotificationValidationResult = {
+  valid: boolean;
+  reason: string | null;
+};
+
+
 
 const initialNotifications: Notification[] = [];
 
@@ -112,6 +124,55 @@ function pruneExpiredNotifications(
     }
   );
 }
+
+function validateNotification(
+  notification: Notification
+): NotificationValidationResult {
+  if (!notification.title.trim()) {
+    return {
+      valid: false,
+      reason: "Missing title",
+    };
+  }
+
+  if (!notification.href.trim()) {
+    return {
+      valid: false,
+      reason: "Missing destination",
+    };
+  }
+
+  return {
+    valid: true,
+    reason: null,
+  };
+}
+
+function normalizeNotification(
+  notification: Notification
+): Notification {
+  return {
+    ...notification,
+    title:
+      notification.title.trim(),
+    description:
+      notification.description.trim(),
+  };
+}
+
+function buildDeliveryMetrics(
+  currentVersion: number,
+  duplicateEventsPrevented: number,
+  cleanupCycles: number
+): NotificationDeliveryState {
+  return {
+    deliveryVersion:
+      currentVersion + 1,
+    duplicateEventsPrevented,
+    cleanupCycles,
+  };
+}
+
 
 
 function isDuplicateNotification(
@@ -210,6 +271,15 @@ export default function NotificationsPanel() {
       queueVersion: 1,
     });
 
+    const [
+      deliveryState,
+      setDeliveryState,
+    ] = useState<NotificationDeliveryState>({
+      deliveryVersion: 1,
+      duplicateEventsPrevented: 0,
+      cleanupCycles: 0,
+    });
+
   useEffect(() => {
     function handleOutsideClick(
       event: MouseEvent
@@ -276,22 +346,45 @@ export default function NotificationsPanel() {
             lastNotificationTimeRef.current
           )
         ) {
+          setDeliveryState(
+            (current) => ({
+              ...current,
+              duplicateEventsPrevented:
+                current.duplicateEventsPrevented +
+                1,
+            })
+          );
+
           return;
         }
+
+        const validation =
+          validateNotification(
+            incomingNotification
+          );
+
+        if (!validation.valid) {
+          return;
+        }
+
+        const normalizedNotification =
+          normalizeNotification(
+            incomingNotification
+          );
 
         setNotifications(
           (current) => {
             notificationLifecycleRef.current.set(
               incomingNotification.id,
               createNotificationLifecycle(
-                incomingNotification
+                normalizedNotification
               )
             );
 
             return sortNotificationsByPriority(
               reconcileNotificationUpdates(
                 current,
-                incomingNotification
+                normalizedNotification
               )
             );
           }
@@ -306,6 +399,14 @@ export default function NotificationsPanel() {
             queueVersion:
               current.queueVersion + 1,
           })
+        );
+        setDeliveryState(
+          (current) =>
+            buildDeliveryMetrics(
+              current.deliveryVersion,
+              current.duplicateEventsPrevented,
+              current.cleanupCycles
+            )
         );
       }, 15000);
 
@@ -325,6 +426,13 @@ export default function NotificationsPanel() {
               current,
               notificationLifecycleRef.current
             )
+        );
+        setDeliveryState(
+          (current) => ({
+            ...current,
+            cleanupCycles:
+              current.cleanupCycles + 1,
+          })
         );
       }, 30000);
 
@@ -417,6 +525,22 @@ export default function NotificationsPanel() {
                 • Processed{" "}
                 {queueState.processedCount}
               </p>
+
+              <p className="text-[10px] text-outline">
+                Delivery v
+                {deliveryState.deliveryVersion}
+              </p>
+
+              <p className="text-[10px] text-outline">
+                Duplicates Blocked{" "}
+                {deliveryState.duplicateEventsPrevented}
+              </p>
+
+              <p className="text-[10px] text-outline">
+                Cleanup Cycles{" "}
+                {deliveryState.cleanupCycles}
+              </p>
+
             </div>
 
             <button
