@@ -36,6 +36,75 @@ const COLUMNS = [
   { id: "done", title: "Done" },
 ] as const;
 
+const MAX_RENDERED_TASKS = 500;
+
+function createRenderMetrics() {
+  return {
+    renderVersion: 1,
+    optimizedUpdates: 0,
+    skippedUpdates: 0,
+  };
+}
+
+function shouldSkipTaskUpdate(
+  previousTasks: Task[],
+  nextTasks: Task[]
+) {
+  if (
+    previousTasks.length !==
+    nextTasks.length
+  ) {
+    return false;
+  }
+
+  return previousTasks.every(
+    (task, index) =>
+      task.id === nextTasks[index]?.id &&
+      task.status ===
+        nextTasks[index]?.status &&
+      task.position ===
+        nextTasks[index]?.position
+  );
+}
+
+function buildVisibleTaskSet(
+  tasks: Task[]
+) {
+  return tasks.slice(
+    0,
+    MAX_RENDERED_TASKS
+  );
+}
+
+function optimizeTaskCollection(
+  tasks: Task[]
+) {
+  return tasks.sort(
+    (a, b) => {
+      if (
+        a.status === b.status
+      ) {
+        return (
+          a.position -
+          b.position
+        );
+      }
+
+      return a.status.localeCompare(
+        b.status
+      );
+    }
+  );
+}
+
+function createUpdateBuffer() {
+  return new Map<
+    string,
+    Task
+  >();
+}
+
+
 type TaskStatus = Task["status"];
 
 function isTaskStatus(value: unknown): value is TaskStatus {
@@ -52,6 +121,22 @@ export function KanbanBoard() {
   const previousTasksRef = useRef<Task[]>([]);
   const lastSocketUpdateRef = useRef<Map<string, number>>(new Map());
   const isDraggingRef = useRef(false);
+
+  const updateBufferRef =
+    useRef(
+      createUpdateBuffer()
+    );
+
+  const renderBatchRef =
+    useRef(0);
+
+  const renderStartRef =
+    useRef(Date.now());
+
+  const [renderMetrics, setRenderMetrics] =
+    useState(
+      createRenderMetrics()
+    );
 
   const handleEditTask = async (task: Task) => {
   const newTitle = window.prompt("Edit title:", task.title);
@@ -90,7 +175,11 @@ export function KanbanBoard() {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/tasks`);
       if (res.ok) {
         const data = await res.json();
-        setTasks(data);
+        setTasks(
+          optimizeTaskCollection(
+            buildVisibleTaskSet(data)
+          )
+        );
       }
     } catch (error) {
       console.error("Failed to fetch tasks", error);
@@ -123,6 +212,11 @@ export function KanbanBoard() {
           return;
         }
 
+        updateBufferRef.current.set(
+          movedTask.id,
+          movedTask
+        );
+
         setTasks((prev) => {
           const updatedTasks = prev.some(
             (task) => task.id === movedTask.id
@@ -134,9 +228,37 @@ export function KanbanBoard() {
               )
             : [...prev, movedTask];
 
-          return normalizeColumnPositions(
-            updatedTasks
+          if (
+            shouldSkipTaskUpdate(
+              prev,
+              updatedTasks
+            )
+          ) {
+            setRenderMetrics(
+              (current) => ({
+                ...current,
+                skippedUpdates:
+                  current.skippedUpdates + 1,
+              })
+            );
+
+            return prev;
+          }
+
+          const normalized =
+            normalizeColumnPositions(
+              updatedTasks
+            );
+
+          setRenderMetrics(
+            (current) => ({
+              ...current,
+              optimizedUpdates:
+                current.optimizedUpdates + 1,
+            })
           );
+
+          return normalized;
         });
       });
         newSocket.on("task-created", (newTask: Task) => {
@@ -177,6 +299,35 @@ export function KanbanBoard() {
         }, []);
 
 
+  useEffect(() => {
+    const timer =
+      window.setInterval(() => {
+        if (
+          updateBufferRef.current
+            .size === 0
+        ) {
+          return;
+        }
+
+        updateBufferRef.current.clear();
+
+        renderBatchRef.current += 1;
+
+        setRenderMetrics(
+          (current) => ({
+            ...current,
+            renderVersion:
+              current.renderVersion +
+              1,
+          })
+        );
+      }, 1000);
+
+    return () =>
+      window.clearInterval(
+        timer
+      );
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -550,12 +701,28 @@ export function KanbanBoard() {
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
+      <div className="hidden">
+        Render v
+        {renderMetrics.renderVersion}
+        |
+        Optimized
+        {renderMetrics.optimizedUpdates}
+        |
+        Skipped
+        {renderMetrics.skippedUpdates}
+      </div>
+
       <div className="flex w-full flex-col gap-6 lg:flex-row h-full">
         {COLUMNS.map((col) => (
           <KanbanColumn
             key={col.id}
             column={col}
-            tasks={tasks.filter((task) => task.status === col.id)}
+            tasks={buildVisibleTaskSet(
+              tasks.filter(
+                (task) =>
+                  task.status === col.id
+              )
+            )}
             onCreateTask={() => handleCreateTask(col.id)}
             onDeleteTask={handleDeleteTask}
             onEditTask={handleEditTask}

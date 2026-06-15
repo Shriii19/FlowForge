@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 const commands = [
@@ -23,6 +23,19 @@ type IndexedCommand = {
   searchLabel: string;
   keywords: string[];
 };
+
+type CommandExecutionState = {
+  sequenceNumber: number;
+  queuedCommands: number;
+  completedCommands: number;
+};
+
+type CommandTransaction = {
+  transactionId: string;
+  startedAt: number;
+  commandId: number;
+};
+
 
 function buildCommandIndex(
   commandList: typeof commands
@@ -178,6 +191,48 @@ function buildRecentCommands(
   ].slice(0, 5);
 }
 
+function createExecutionState(): CommandExecutionState {
+  return {
+    sequenceNumber: 1,
+    queuedCommands: 0,
+    completedCommands: 0,
+  };
+}
+
+function createCommandTransaction(
+  commandId: number
+): CommandTransaction {
+  return {
+    transactionId: `${commandId}-${Date.now()}`,
+    startedAt: Date.now(),
+    commandId,
+  };
+}
+
+function isCommandConflict(
+  activeTransaction: CommandTransaction | null,
+  commandId: number
+) {
+  return (
+    activeTransaction !== null &&
+    activeTransaction.commandId === commandId
+  );
+}
+
+function queueCommandExecution(
+  command: IndexedCommand,
+  queue: IndexedCommand[]
+) {
+  return [...queue, command];
+}
+
+function dequeueCommandExecution(
+  queue: IndexedCommand[]
+) {
+  return queue.slice(1);
+}
+
+
 export default function CommandPalette() {
   const router = useRouter();
 
@@ -186,6 +241,23 @@ export default function CommandPalette() {
   const [selected, setSelected] = useState(0);
   const [recentCommands, setRecentCommands] =
     useState<typeof commands>([]);
+
+  const [
+    executionState,
+    setExecutionState,
+  ] = useState(
+    createExecutionState()
+  );
+
+  const [
+    commandQueue,
+    setCommandQueue,
+  ] = useState<IndexedCommand[]>([]);
+
+  const activeTransactionRef =
+    useRef<CommandTransaction | null>(
+      null
+    );
 
   const commandIndex =
     useMemo(
@@ -241,6 +313,59 @@ export default function CommandPalette() {
       );
     };
   }, []);
+
+  const executeCommand = (
+    command: IndexedCommand
+  ) => {
+    if (
+      isCommandConflict(
+        activeTransactionRef.current,
+        command.id
+      )
+    ) {
+      return;
+    }
+
+    activeTransactionRef.current =
+      createCommandTransaction(
+        command.id
+      );
+
+    const updatedRecent =
+      buildRecentCommands(
+        command,
+        recentCommands
+      );
+
+    setRecentCommands(updatedRecent);
+
+    localStorage.setItem(
+      "flowforge-recent-commands",
+      JSON.stringify(updatedRecent)
+    );
+
+    setExecutionState(
+      (current) => ({
+        sequenceNumber:
+          current.sequenceNumber + 1,
+        queuedCommands:
+          Math.max(
+            0,
+            current.queuedCommands - 1
+          ),
+        completedCommands:
+          current.completedCommands + 1,
+      })
+    );
+
+    router.push(command.href);
+
+    activeTransactionRef.current =
+      null;
+
+    setOpen(false);
+    setQuery("");
+  };
 
   const filteredCommands =
     useMemo(() => {
@@ -315,27 +440,21 @@ export default function CommandPalette() {
           filteredCommands[selected];
 
         if (command) {
-          const updatedRecent =
-            buildRecentCommands(
-              command,
-              recentCommands
-            );
-
-          setRecentCommands(
-            updatedRecent
+          setCommandQueue(
+            (current) =>
+              queueCommandExecution(
+                command,
+                current
+              )
           );
 
-          localStorage.setItem(
-            "flowforge-recent-commands",
-            JSON.stringify(
-              updatedRecent
-            )
+          setExecutionState(
+            (current) => ({
+              ...current,
+              queuedCommands:
+                current.queuedCommands + 1,
+            })
           );
-
-          router.push(command.href);
-
-          setOpen(false);
-          setQuery("");
         }
       }
     }
@@ -358,6 +477,26 @@ export default function CommandPalette() {
     router,
     recentCommands,
   ]);
+
+  useEffect(() => {
+    if (
+      commandQueue.length === 0
+    ) {
+      return;
+    }
+
+    const nextCommand =
+      commandQueue[0];
+
+    executeCommand(nextCommand);
+
+    setCommandQueue(
+      (current) =>
+        dequeueCommandExecution(
+          current
+        )
+    );
+  }, [commandQueue]);
 
   const groupedCommands =
     useMemo(
@@ -407,12 +546,31 @@ export default function CommandPalette() {
                   <button
                     key={`recent-${command.id}`}
                     onClick={() => {
-                      router.push(
-                        command.href
+                      const indexedCommand =
+                        commandIndex.find(
+                          (item) =>
+                            item.id === command.id
+                        );
+
+                      if (!indexedCommand) {
+                        return;
+                      }
+
+                      setCommandQueue(
+                        (current) =>
+                          queueCommandExecution(
+                            indexedCommand,
+                            current
+                          )
                       );
 
-                      setOpen(false);
-                      setQuery("");
+                      setExecutionState(
+                        (current) => ({
+                          ...current,
+                          queuedCommands:
+                            current.queuedCommands + 1,
+                        })
+                      );
                     }}
                     className="flex w-full items-center justify-between px-4 py-3 text-left transition-all duration-200 hover:bg-surface-container-low"
                   >
@@ -473,29 +631,21 @@ export default function CommandPalette() {
                       <button
                         key={command.id}
                         onClick={() => {
-                          const updatedRecent =
-                            buildRecentCommands(
-                              command,
-                              recentCommands
-                            );
-
-                          setRecentCommands(
-                            updatedRecent
+                          setCommandQueue(
+                            (current) =>
+                              queueCommandExecution(
+                                command,
+                                current
+                              )
                           );
 
-                          localStorage.setItem(
-                            "flowforge-recent-commands",
-                            JSON.stringify(
-                              updatedRecent
-                            )
+                          setExecutionState(
+                            (current) => ({
+                              ...current,
+                              queuedCommands:
+                                current.queuedCommands + 1,
+                            })
                           );
-
-                          router.push(
-                            command.href
-                          );
-
-                          setOpen(false);
-                          setQuery("");
                         }}
                         className={`flex w-full items-center justify-between px-4 py-3 text-left transition-all duration-200 ${
                           selected === index
@@ -527,6 +677,15 @@ export default function CommandPalette() {
       }
       data-filtered-commands={
         filteredCommands.length
+      }
+      data-sequence-number={
+        executionState.sequenceNumber
+      }
+      data-queued-commands={
+        executionState.queuedCommands
+      }
+      data-completed-commands={
+        executionState.completedCommands
       }
     />
       
