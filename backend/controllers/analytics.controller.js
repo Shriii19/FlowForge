@@ -1,51 +1,33 @@
 import supabase from "../config/db.js";
 
-function normalizeAnalyticsEvents(
-  events = []
-) {
-  return [...events].sort(
-    (a, b) =>
-      new Date(
-        a.created_at || 0
-      ).getTime() -
-      new Date(
-        b.created_at || 0
-      ).getTime()
-  );
+/* ---------------- HELPERS (UNCHANGED STRUCTURE) ---------------- */
+
+function normalizeAnalyticsEvents(events = []) {
+  return [...events]
+    .filter(Boolean)
+    .sort(
+      (a, b) =>
+        new Date(a.created_at || 0).getTime() -
+        new Date(b.created_at || 0).getTime()
+    );
 }
 
-function validateAggregationInput(
-  tasks,
-  messages
-) {
-  return (
-    Array.isArray(tasks) &&
-    Array.isArray(messages)
-  );
+function validateAggregationInput(tasks, messages) {
+  return Array.isArray(tasks) && Array.isArray(messages);
 }
 
-function buildAggregationMetadata(
-  tasks,
-  messages
-) {
+function buildAggregationMetadata(tasks, messages) {
   return {
     aggregationProtected: true,
     taskCount: tasks.length,
-    messageCount:
-      messages.length,
-    requestScopedAggregation:
-      true,
-    deterministicBoundaries:
-      true,
-    generatedAt:
-      new Date().toISOString(),
+    messageCount: messages.length,
+    requestScopedAggregation: true,
+    deterministicBoundaries: true,
+    generatedAt: new Date().toISOString(),
   };
 }
 
-function detectAggregationDrift(
-  tasks,
-  messages
-) {
+function detectAggregationDrift(tasks, messages) {
   return {
     driftDetected: false,
     consistencyScore: 100,
@@ -55,31 +37,22 @@ function detectAggregationDrift(
 
 function createRequestAggregationContext() {
   return {
-    requestId:
-      `${Date.now()}-${Math.random()
-        .toString(36)
-        .slice(2, 8)}`,
+    requestId: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     stateIsolated: true,
     deterministicComputation: true,
   };
 }
 
-function buildConcurrentExecutionMetadata(
-  tasks,
-  messages
-) {
+function buildConcurrentExecutionMetadata(tasks, messages) {
   return {
     concurrentValidationEnabled: true,
-    totalEvents:
-      tasks.length +
-      messages.length,
-    executionBoundary:
-      "request-scope",
-    validatedAt:
-      Date.now(),
+    totalEvents: tasks.length + messages.length,
+    executionBoundary: "request-scope",
+    validatedAt: Date.now(),
   };
 }
 
+/* ---------------- MAIN CONTROLLER ---------------- */
 
 export const getAnalytics = async (req, res) => {
   try {
@@ -87,232 +60,142 @@ export const getAnalytics = async (req, res) => {
       { data: tasks, error: tasksError },
       { data: messages, error: messagesError },
     ] = await Promise.all([
-      supabase
-        .from("tasks")
-        .select(
-          "id,title,status,position,created_at"
-        ),
-      supabase
-        .from("messages")
-        .select(
-          "id,username,text,created_at"
-        ),
+      supabase.from("tasks").select("id,title,status,position,created_at"),
+      supabase.from("messages").select("id,username,text,created_at"),
     ]);
 
     if (tasksError) throw tasksError;
     if (messagesError) throw messagesError;
 
-    if (
-      !validateAggregationInput(
-        tasks,
-        messages
-      )
-    ) {
+    if (!validateAggregationInput(tasks, messages)) {
       return res.status(400).json({
-        error:
-          "Invalid analytics dataset",
+        error: "Invalid analytics dataset",
       });
     }
 
-    const normalizedTasks =
-      normalizeAnalyticsEvents(
-        tasks || []
-      );
+    /* ---------------- NORMALIZATION ---------------- */
 
-    const normalizedMessages =
-      normalizeAnalyticsEvents(
-        messages || []
-      );
+    const normalizedTasks = normalizeAnalyticsEvents(tasks || []);
+    const normalizedMessages = normalizeAnalyticsEvents(messages || []);
 
     const aggregationMetadata =
-      buildAggregationMetadata(
-        normalizedTasks,
-        normalizedMessages
-      );
+      buildAggregationMetadata(normalizedTasks, normalizedMessages);
 
     const aggregationDrift =
-      detectAggregationDrift(
-        normalizedTasks,
-        normalizedMessages
-      );
+      detectAggregationDrift(normalizedTasks, normalizedMessages);
 
-    const requestContext =
-      createRequestAggregationContext();
+    const requestContext = createRequestAggregationContext();
 
     const executionMetadata =
-      buildConcurrentExecutionMetadata(
-        normalizedTasks,
-        normalizedMessages
-      );
+      buildConcurrentExecutionMetadata(normalizedTasks, normalizedMessages);
 
-    const usernameSet =
-      new Set();
+    /* ---------------- OPTIMIZED USER GROUPING ---------------- */
+    // (structure preserved, logic optimized only)
+
+    const usernameSet = new Set();
 
     for (const msg of normalizedMessages) {
-      if (msg.username) {
-        usernameSet.add(
-          msg.username
-        );
-      }
+      if (msg.username) usernameSet.add(msg.username);
     }
 
     const usernames =
-      usernameSet.size > 0
-        ? Array.from(
-            usernameSet
-          )
-        : ["team"];
+      usernameSet.size > 0 ? Array.from(usernameSet) : ["team"];
 
-    const buildMembers = (
-      sprintTasks = []
-    ) => {
-      return usernames.map(
-        (username) => {
-          const userMessages =
-            normalizedMessages.filter(
-              (m) =>
-                m.username ===
-                username
-            );
+    /* Pre-index messages (optimization, structure unchanged) */
+    const messagesByUser = {};
 
-          const index =
-            usernames.indexOf(
-              username
-            );
+    for (const msg of normalizedMessages) {
+      if (!msg.username) continue;
 
-          const assignedTasks =
-            sprintTasks.filter(
-              (_, i) =>
-                i %
-                  usernames.length ===
-                index
-            );
+      if (!messagesByUser[msg.username]) {
+        messagesByUser[msg.username] = [];
+      }
 
-          const completedTasks =
-            assignedTasks.filter(
-              (t) =>
-                t.status ===
-                "done"
-            );
+      messagesByUser[msg.username].push(msg);
+    }
 
-          const activity =
-            Array.from(
-              { length: 8 },
-              (_, day) => {
-                const cutoff =
-                  new Date();
+    /* ---------------- MEMBER BUILDER (STRUCTURE PRESERVED) ---------------- */
 
-                cutoff.setDate(
-                  cutoff.getDate() -
-                    (7 - day)
-                );
+    const buildMembers = (sprintTasks = []) => {
+      return usernames.map((username) => {
+        const userMessages = messagesByUser[username] || [];
 
-                const dayStart =
-                  new Date(
-                    cutoff
-                  );
+        const index = usernames.indexOf(username);
 
-                dayStart.setHours(
-                  0,
-                  0,
-                  0,
-                  0
-                );
+        const assignedTasks = sprintTasks.filter(
+          (_, i) => i % usernames.length === index
+        );
 
-                const dayEnd =
-                  new Date(
-                    cutoff
-                  );
+        const completedTasks = assignedTasks.filter(
+          (t) => t.status === "done"
+        );
 
-                dayEnd.setHours(
-                  23,
-                  59,
-                  59,
-                  999
-                );
+        /* OPTIMIZED ACTIVITY LOOP (same output, fewer repeated operations) */
+        const activity = Array.from({ length: 8 }, (_, day) => {
+          const cutoff = new Date();
+          cutoff.setDate(cutoff.getDate() - (7 - day));
 
-                return userMessages.filter(
-                  (m) => {
-                    const t =
-                      new Date(
-                        m.created_at
-                      );
+          const start = new Date(cutoff);
+          start.setHours(0, 0, 0, 0);
 
-                    return (
-                      t >=
-                        dayStart &&
-                      t <= dayEnd
-                    );
-                  }
-                ).length;
-              }
-            );
+          const end = new Date(cutoff);
+          end.setHours(23, 59, 59, 999);
 
-          return {
-            name: username,
-            assigned:
-              assignedTasks.length,
-            completed:
-              completedTasks.length,
-            reviews:
-              userMessages.length,
-            activity,
-          };
-        }
-      );
+          let count = 0;
+
+          for (const m of userMessages) {
+            const t = new Date(m.created_at);
+            if (t >= start && t <= end) count++;
+          }
+
+          return count;
+        });
+
+        return {
+          name: username,
+          assigned: assignedTasks.length,
+          completed: completedTasks.length,
+          reviews: userMessages.length,
+          activity,
+        };
+      });
     };
 
-    const allTasks =
-      normalizedTasks;
+    /* ---------------- SPLIT ---------------- */
 
-    const halfLen =
-      Math.ceil(
-        allTasks.length / 2
-      );
+    const allTasks = normalizedTasks;
+    const halfLen = Math.ceil(allTasks.length / 2);
 
-    res.status(200).json({
+    const currentSprint = allTasks.slice(halfLen);
+    const previousSprint = allTasks.slice(0, halfLen);
+
+    /* ---------------- RESPONSE (UNCHANGED SHAPE) ---------------- */
+
+    return res.status(200).json({
       requestContext,
       executionMetadata,
 
-      aggregation:
-        aggregationMetadata,
-      consistency:
-        aggregationDrift,
+      aggregation: aggregationMetadata,
+      consistency: aggregationDrift,
+
       sprints: [
         {
-          label:
-            "Current Sprint",
-          members:
-            buildMembers(
-              allTasks.slice(
-                halfLen
-              )
-            ),
+          label: "Current Sprint",
+          members: buildMembers(currentSprint),
         },
         {
-          label:
-            "Previous Sprint",
-          members:
-            buildMembers(
-              allTasks.slice(
-                0,
-                halfLen
-              )
-            ),
+          label: "Previous Sprint",
+          members: buildMembers(previousSprint),
         },
       ],
-      generatedAt:
-        new Date().toISOString(),
+
+      generatedAt: new Date().toISOString(),
     });
   } catch (error) {
-    console.error(
-      "Error building analytics:",
-      error
-    );
+    console.error("Error building analytics:", error);
 
-    res.status(500).json({
-      error:
-        "Failed to load analytics",
+    return res.status(500).json({
+      error: "Failed to load analytics",
     });
   }
 };
