@@ -38,7 +38,7 @@ function getNavigationState(
 
   return {
     isActive,
-    className: `flex items-center gap-2 rounded-xl px-3 py-2 transition ${
+    className: `flex items-center gap-2 rounded-xl px-3 py-2 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 ${
       isActive
         ? "bg-teal-700 text-white shadow-sm"
         : "text-slate-700 hover:bg-slate-200"
@@ -46,38 +46,41 @@ function getNavigationState(
   };
 }
 
-const NAVIGATION_ITEMS: NavigationItem[] =
-  [
-    {
-      href: "/dashboard",
-      label: "Dashboard",
-      icon: LayoutDashboard,
-    },
-    {
-      href: "/projects",
-      label: "Projects",
-      icon: FolderKanban,
-    },
-    {
-      href: "/workspace",
-      label: "Workspace",
-      icon: Blocks,
-    },
-    {
-      href: "/insights/overview",
-      label: "Insights",
-      icon: BarChart3,
-    },
-    {
-      href: "/chat",
-      label: "Chat",
-      icon: MessageSquare,
-    },
-  ];
+const NAVIGATION_ITEMS: NavigationItem[] = [
+  {
+    href: "/dashboard",
+    label: "Dashboard",
+    icon: LayoutDashboard,
+  },
+  {
+    href: "/projects",
+    label: "Projects",
+    icon: FolderKanban,
+  },
+  {
+    href: "/workspace",
+    label: "Workspace",
+    icon: Blocks,
+  },
+  {
+    href: "/insights/overview",
+    label: "Insights",
+    icon: BarChart3,
+  },
+  {
+    href: "/chat",
+    label: "Chat",
+    icon: MessageSquare,
+  },
+];
 
 function persistActiveRoute(
   pathname: string
 ) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
   sessionStorage.setItem(
     "sidebar-active-route",
     pathname
@@ -85,6 +88,10 @@ function persistActiveRoute(
 }
 
 function getPersistedRoute() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
   return sessionStorage.getItem(
     "sidebar-active-route"
   );
@@ -112,17 +119,29 @@ function buildNavigationItems(
   );
 }
 
+function getNavigationAriaLabel(
+  label: string,
+  isActive: boolean
+) {
+  return isActive
+    ? `${label} (current page)`
+    : label;
+}
+
 export default function Sidebar() {
-  const pathname = usePathname();
+  const pathname =
+    usePathname() ?? "";
 
   const [activePath, setActivePath] =
-    useState(pathname);
+    useState<string>(
+      pathname
+    );
 
   const saveActiveRoute =
     useCallback(
-      (pathname: string) => {
+      (currentPath: string) => {
         persistActiveRoute(
-          pathname
+          currentPath
         );
       },
       []
@@ -134,7 +153,10 @@ export default function Sidebar() {
     if (pathname) {
       saveActiveRoute(pathname);
     }
-  }, [pathname, saveActiveRoute]);
+  }, [
+    pathname,
+    saveActiveRoute,
+  ]);
 
   useEffect(() => {
     const persistedPath =
@@ -144,9 +166,11 @@ export default function Sidebar() {
       persistedPath &&
       !activePath
     ) {
-      setActivePath(persistedPath);
+      setActivePath(
+        persistedPath
+      );
     }
-  }, []);
+  }, [activePath]);
 
   const navigationItems =
     useMemo(
@@ -158,40 +182,68 @@ export default function Sidebar() {
     );
 
   return (
-    <aside className="panel sticky top-0 z-20 m-2 mb-0 w-[140px] p-3 sm:m-4 sm:w-[180px] md:m-6 md:mb-6 md:h-[calc(100vh-3rem)] md:w-64 md:p-4">
+    <aside
+      aria-label="Sidebar"
+      aria-labelledby="sidebar-title"
+      className="panel sticky top-0 z-20 m-2 mb-0 w-[140px] p-3 sm:m-4 sm:w-[180px] md:m-6 md:mb-6 md:h-[calc(100vh-3rem)] md:w-64 md:p-4"
+    >
       <div className="mb-4 flex items-center justify-between md:mb-6 md:block">
-        <h1 className="text-xl font-bold tracking-tight text-slate-900 md:text-2xl">
+        <h1
+          id="sidebar-title"
+          className="text-xl font-bold tracking-tight text-slate-900 md:text-2xl"
+        >
           FlowForge
         </h1>
 
-        <span className="chip px-3 py-1 text-xs font-semibold">
+        <span
+          className="chip px-3 py-1 text-xs font-semibold"
+          aria-label="Application version 1"
+        >
           v1
         </span>
       </div>
 
-      <nav className="flex flex-col gap-2">
-        {navigationItems.map(
-          (item) => {
-            const Icon =
-              item.icon;
+      <nav aria-label="Primary navigation">
+        <ul className="flex flex-col gap-2">
+          {navigationItems.map(
+            (item) => {
+              const Icon =
+                item.icon;
 
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={
-                  item.className
-                }
-              >
-                <Icon size={16} />
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    className={
+                      item.className
+                    }
+                    aria-current={
+                      item.isActive
+                        ? "page"
+                        : undefined
+                    }
+                    aria-label={getNavigationAriaLabel(
+                      item.label,
+                      item.isActive
+                    )}
+                    title={
+                      item.label
+                    }
+                  >
+                    <Icon
+                      size={16}
+                      aria-hidden="true"
+                    />
 
-                <span className="text-sm font-medium">
-                  {item.label}
-                </span>
-              </Link>
-            );
-          }
-        )}
+                    <span className="text-sm font-medium">
+                      {item.label}
+                    </span>
+                  </Link>
+                </li>
+              );
+            }
+          )}
+        </ul>
       </nav>
     </aside>
   );
