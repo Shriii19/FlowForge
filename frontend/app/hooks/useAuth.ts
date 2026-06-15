@@ -9,12 +9,19 @@ import type {
   AuthChangeEvent,
 } from "@supabase/supabase-js";
 
+
 type AuthStatus =
   | "initializing"
   | "authenticated"
   | "unauthenticated"
   | "recovering"
   | "error";
+
+type RecoveryCheckpoint =
+  | "SESSION_FETCH"
+  | "SESSION_VALIDATION"
+  | "USER_RECOVERY"
+  | "AUTH_SYNC";
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
@@ -23,6 +30,17 @@ export function useAuth() {
 
   const router = useRouter();
   const mountedRef = useRef(true);
+
+  const recoveryGeneration = useRef(0);
+
+  const [recoveryAttempts, setRecoveryAttempts] =
+    useState(0);
+
+  const [lastRecoveryTime, setLastRecoveryTime] =
+    useState<number | null>(null);
+
+  const [lastCheckpoint, setLastCheckpoint] =
+    useState<RecoveryCheckpoint | null>(null);
 
   if (!supabase) {
     return {
@@ -55,8 +73,13 @@ export function useAuth() {
       return session;
     } catch (error) {
       if (retryCount < 2) {
+        const backoffDelay = Math.min(
+          1000 * Math.pow(2, retryCount),
+          5000
+        );
+
         await new Promise((resolve) =>
-          setTimeout(resolve, 500 * (retryCount + 1))
+          setTimeout(resolve, backoffDelay)
         );
 
         return restoreSession(retryCount + 1);
@@ -96,13 +119,24 @@ export function useAuth() {
   };
 
   const executeRecoveryFlow = async () => {
+
+    setRecoveryAttempts((prev) => prev + 1);
+    setLastCheckpoint("SESSION_FETCH");
+
     const session =
       await restoreSession();
+      setLastCheckpoint("SESSION_VALIDATION");
 
     const isValid =
       await validateRecoveredSession(
         session
       );
+      setLastCheckpoint("USER_RECOVERY");
+      
+    setLastRecoveryTime(Date.now());
+    setLastCheckpoint("AUTH_SYNC"); 
+
+    
 
     return {
       session,
@@ -132,20 +166,74 @@ export function useAuth() {
     mountedRef.current = true;
 
     const initializeAuth = async () => {
+
+      const currentGeneration =
+        ++recoveryGeneration.current;
       try {
         setStatus("recovering");
+
+        const recoveryPromise =
+          executeRecoveryFlow();
+
+        const timeoutPromise =
+          new Promise((_, reject) =>
+            setTimeout(
+              () =>
+                reject(
+                  new Error(
+                    "Recovery timeout"
+                  )
+                ),
+              8000
+            )
+          );
 
         const {
           session,
           isValid,
           metadata,
-        } = await executeRecoveryFlow();
+        } = (await Promise.race([
+          recoveryPromise,
+          timeoutPromise,
+        ])) as Awaited<
+          ReturnType<
+            typeof executeRecoveryFlow
+          >
+        >;
 
         void metadata;
 
         if (!mountedRef.current) return;
 
         if (!session || !isValid) {
+
+          try {
+            const {
+              data: refreshed,
+            } =
+              await supabase!.auth.refreshSession();
+
+            if (
+              refreshed?.session
+            ) {
+              if (
+                currentGeneration !==
+                recoveryGeneration.current
+              ) {
+                return;
+              }
+
+              setUser(
+                refreshed.session.user
+              );
+
+              setStatus(
+                "authenticated"
+              );
+
+              return;
+            }
+          } catch {}
           const recoveryResult =
             handleRecoveryFailure();
 
@@ -162,10 +250,18 @@ export function useAuth() {
           return;
         }
 
+
         const recoveryResult =
           handleRecoverySuccess(
             session
           );
+
+        if (
+          currentGeneration !==
+          recoveryGeneration.current
+        ) {
+          return;
+        }
 
         setUser(
           recoveryResult.user
@@ -220,6 +316,7 @@ export function useAuth() {
               return;
             }
 
+
             setUser(
               session?.user ?? null
             );
@@ -257,6 +354,9 @@ export function useAuth() {
     user,
     loading,
     status,
+    recoveryAttempts,
+    lastRecoveryTime,
+    lastCheckpoint,
     isAuthenticated:
       status === "authenticated",
   };
