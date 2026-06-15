@@ -297,6 +297,17 @@ export function KanbanBoard() {
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
+      <div className="hidden">
+        Render v
+        {renderMetrics.renderVersion}
+        |
+        Optimized
+        {renderMetrics.optimizedUpdates}
+        |
+        Skipped
+        {renderMetrics.skippedUpdates}
+      </div>
+
       <div className="flex w-full flex-col gap-6 lg:flex-row h-full">
         {COLUMNS.map((col) => (
           <KanbanColumn

@@ -175,6 +175,9 @@ export default function InsightsAnalyticsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
 
+  const [transformationDuration, setTransformationDuration] =
+    useState(0);
+
   useEffect(() => {
     const controller = new AbortController();
 
@@ -193,12 +196,17 @@ export default function InsightsAnalyticsPage() {
         });
         if (!response.ok) throw new Error("Failed to load analytics");
         const body = (await response.json()) as AnalyticsResponse;
+        const transformStart = performance.now();
         const nextData = body.sprints.reduce<
           Record<string, MemberPerformance[]>
         >((acc, item) => {
           acc[item.label] = item.members;
           return acc;
         }, {});
+
+        setTransformationDuration(
+          performance.now() - transformStart
+        );
 
         if (Object.keys(nextData).length > 0) {
           setData(nextData);
@@ -232,64 +240,116 @@ export default function InsightsAnalyticsPage() {
   );
   const compareMembers = useMemo(() => data[sprintB] || [], [data, sprintB]);
 
-  const sprintAMetrics = {
-    completed: members.reduce((sum, member) => sum + member.completed, 0),
-    reviews: members.reduce((sum, member) => sum + member.reviews, 0),
-  };
+  const sprintAMetrics = useMemo(
+    () => ({
+      completed: members.reduce(
+        (sum, member) => sum + member.completed,
+        0
+      ),
+      reviews: members.reduce(
+        (sum, member) => sum + member.reviews,
+        0
+      ),
+    }),
+    [members]
+  );
 
-  const sprintBMetrics = {
-    completed: compareMembers.reduce(
-      (sum, member) => sum + member.completed,
-      0,
-    ),
-    reviews: compareMembers.reduce((sum, member) => sum + member.reviews, 0),
-  };
-  const sprintComparisonChartData = [
-    {
-      metric: "Completed",
-      [sprintA]: sprintAMetrics.completed,
-      [sprintB]: sprintBMetrics.completed,
-    },
-    {
-      metric: "Reviews",
-      [sprintA]: sprintAMetrics.reviews,
-      [sprintB]: sprintBMetrics.reviews,
-    },
-  ];
-  const contributorComparison = members
-    .map((member) => {
-      const previousMember = compareMembers.find(
-        (item) => item.id === member.id,
-      );
+  const sprintBMetrics = useMemo(
+    () => ({
+      completed: compareMembers.reduce(
+        (sum, member) => sum + member.completed,
+        0
+      ),
+      reviews: compareMembers.reduce(
+        (sum, member) => sum + member.reviews,
+        0
+      ),
+    }),
+    [compareMembers]
+  );
 
-      const previousCompleted = previousMember?.completed ?? 0;
+  const sprintComparisonChartData = useMemo(
+    () => [
+      {
+        metric: "Completed",
+        [sprintA]: sprintAMetrics.completed,
+        [sprintB]: sprintBMetrics.completed,
+      },
+      {
+        metric: "Reviews",
+        [sprintA]: sprintAMetrics.reviews,
+        [sprintB]: sprintBMetrics.reviews,
+      },
+    ],
+    [
+      sprintA,
+      sprintB,
+      sprintAMetrics,
+      sprintBMetrics,
+    ]
+  );
+  const contributorComparison = useMemo(
+    () =>
+      members
+        .map((member) => {
+          const previousMember =
+            compareMembers.find(
+              (item) =>
+                item.id === member.id
+            );
 
-      const change = member.completed - previousCompleted;
+          const previousCompleted =
+            previousMember?.completed ?? 0;
 
-      return {
-        id: member.id,
-        name: member.name,
-        current: member.completed,
-        previous: previousCompleted,
-        change,
-      };
-    })
+          const change =
+            member.completed -
+            previousCompleted;
 
-    .sort((a, b) => {
-      if (comparisonSort === "improvement") {
-        return b.change - a.change;
-      }
+          return {
+            id: member.id,
+            name: member.name,
+            current: member.completed,
+            previous: previousCompleted,
+            change,
+          };
+        })
+        .sort((a, b) => {
+          if (
+            comparisonSort ===
+            "improvement"
+          ) {
+            return b.change - a.change;
+          }
 
-      if (comparisonSort === "decline") {
-        return a.change - b.change;
-      }
+          if (
+            comparisonSort ===
+            "decline"
+          ) {
+            return a.change - b.change;
+          }
 
-      return a.name.localeCompare(b.name);
-    });
-  const contributorChartData = contributorComparison.map((member) => ({
-    name: member.name,
-    change: member.change,
-  }));
+          return a.name.localeCompare(
+            b.name
+          );
+        }),
+    [
+      members,
+      compareMembers,
+      comparisonSort,
+    ]
+  );
+
+  const contributorChartData =
+    useMemo(
+      () =>
+        contributorComparison.map(
+          (member) => ({
+            name: member.name,
+            change: member.change,
+          })
+        ),
+      [contributorComparison]
+    );
 
   const exportContributorComparisonCSV = () => {
     if (contributorComparison.length === 0) {
@@ -359,9 +419,16 @@ export default function InsightsAnalyticsPage() {
         <div className="p-6 md:p-margin-desktop max-w-container-max mx-auto w-full flex flex-col gap-gutter pb-20 md:pb-8">
           {(isLoading || loadError) && (
             <div className="rounded-lg bg-surface-container-low px-4 py-3 text-sm text-on-surface-variant">
-              {isLoading ? "Refreshing analytics from backend..." : loadError}
+              {isLoading
+                ? "Refreshing analytics from backend..."
+                : loadError}
             </div>
           )}
+
+          <div className="rounded-lg bg-surface-container-low px-4 py-3 text-sm text-on-surface-variant">
+            Dataset transformation time:{" "}
+            {transformationDuration.toFixed(2)} ms
+          </div>
           <div className="rounded-2xl border border-outline-variant bg-white p-6">
             <h3 className="text-lg font-semibold">
               Sprint Performance Comparison

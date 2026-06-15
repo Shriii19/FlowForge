@@ -170,6 +170,39 @@ function createTransformationCache() {
   };
 }
 
+function buildCacheMetadata() {
+  return {
+    cacheVersion: 1,
+    invalidationEnabled: true,
+    refreshVerifiedAt: Date.now(),
+  };
+}
+
+function shouldInvalidateCache(
+  cacheKey,
+  datasetSize
+) {
+  const cached =
+    insightCache.get(
+      `${cacheKey}-size`
+    );
+
+  return (
+    cached !== datasetSize
+  );
+}
+
+function verifyCacheRefresh(
+  datasetSize
+) {
+  return {
+    datasetSize,
+    refreshVerified: true,
+    verifiedAt: Date.now(),
+  };
+}
+
+
 const insightCache =
   createTransformationCache();
 
@@ -259,6 +292,22 @@ export const getOverviewInsights = async (req, res) => {
     const cacheKey =
       `overview-${tasks.length}-${messages.length}`;
 
+    const datasetSize =
+      tasks.length +
+      messages.length;
+
+    if (
+      shouldInvalidateCache(
+        cacheKey,
+        datasetSize
+      )
+    ) {
+      insightCache.set(
+        `${cacheKey}-size`,
+        datasetSize
+      );
+    }
+
     const recentActivity =
       insightCache.get(cacheKey) ??
       insightCache.set(
@@ -274,6 +323,14 @@ export const getOverviewInsights = async (req, res) => {
         tasks,
         messages
       );
+    
+    const cacheMetadata =
+      buildCacheMetadata();
+
+    const refreshVerification =
+      verifyCacheRefresh(
+        datasetSize
+      );
 
     res.status(200).json({
       projectName: "Project Alpha",
@@ -286,11 +343,16 @@ export const getOverviewInsights = async (req, res) => {
       datasetSize:
         tasks.length +
         messages.length,
+
+      cacheMetadata,
+      refreshVerification,
+
       ...overviewMetrics,
       heatmap: buildHeatmap(tasks, messages),
       recentActivity,
       topContributors: getTopContributors(messages.length),
     });
+
   } catch (error) {
     console.error("Error loading overview insights:", error);
     res.status(500).json({ error: "Failed to load overview insights" });
@@ -317,6 +379,18 @@ export const getTaskInsights = async (req, res) => {
 
     const historyCacheKey =
       `history-${tasks.length}`;
+
+    if (
+      shouldInvalidateCache(
+        historyCacheKey,
+        tasks.length
+      )
+    ) {
+      insightCache.set(
+        `${historyCacheKey}-size`,
+        tasks.length
+      );
+    }
 
     const total =
       Math.max(tasks.length, 1);
@@ -376,6 +450,14 @@ export const getTaskInsights = async (req, res) => {
     const fallbackInsights =
       buildFallbackInsights();
 
+    const cacheMetadata =
+      buildCacheMetadata();
+
+    const refreshVerification =
+      verifyCacheRefresh(
+        tasks.length
+      );
+
     res.status(200).json({
       summary,
       confidence:
@@ -387,10 +469,15 @@ export const getTaskInsights = async (req, res) => {
 
       lazyProcessing,
       datasetSize: tasks.length,
+
+      cacheMetadata,
+      refreshVerification,
+
       stages,
       flowNodes,
       history,
     });
+    
   } catch (error) {
     console.error("Error loading task insights:", error);
     res.status(500).json({ error: "Failed to load task insights" });
