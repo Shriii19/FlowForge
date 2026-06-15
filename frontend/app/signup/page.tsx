@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/app/lib/supabase";
 
 function generatePassword(length = 14): string {
@@ -46,6 +46,12 @@ export default function Signup() {
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
+  const [submissionId, setSubmissionId] = useState("");
+  const [retryCount, setRetryCount] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const submissionLockRef = useRef(false);
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     queueMicrotask(() => setNextPath(params.get("next")));
@@ -70,43 +76,103 @@ export default function Signup() {
     setErrorMsg("");
     setSuccessMsg("");
 
+    if (submissionLockRef.current || isSubmitting) {
+      return;
+    }
+
+    submissionLockRef.current = true;
+    setIsSubmitting(true);
+
+    const currentSubmissionId =
+      crypto.randomUUID();
+
+    setSubmissionId(currentSubmissionId);
+
     if (!supabase) {
       setErrorMsg("Supabase is not configured.");
+
+      submissionLockRef.current = false;
+      setIsSubmitting(false);
+
       return;
     }
 
     if (!name.trim() || !username.trim() || !email.trim() || !password) {
       setErrorMsg("Please fill in all required fields.");
+
+      submissionLockRef.current = false;
+      setIsSubmitting(false);
+
       return;
     }
 
     if (mobile && !/^\+?[0-9\s\-]{7,15}$/.test(mobile)) {
       setErrorMsg("Please enter a valid mobile number.");
+
+      submissionLockRef.current = false;
+      setIsSubmitting(false);
+
       return;
     }
 
     if (password !== confirmPassword) {
       setErrorMsg("Passwords do not match.");
+
+      submissionLockRef.current = false;
+      setIsSubmitting(false);
+
       return;
     }
 
     if (password.length < 8) {
       setErrorMsg("Password must be at least 8 characters.");
+
+      submissionLockRef.current = false;
+      setIsSubmitting(false);
+
       return;
     }
 
     setLoading(true);
-    const res = await fetch("/api/auth/signup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: email.trim(),
-        password,
-        name: name.trim(),
-        username: username.trim(),
-        mobile: mobile.trim(),
-      }),
-    });
+    let res: Response | null = null;
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        res = await fetch("/api/auth/signup", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Submission-Id":
+              currentSubmissionId,
+          },
+          body: JSON.stringify({
+            email: email.trim(),
+            password,
+            name: name.trim(),
+            username: username.trim(),
+            mobile: mobile.trim(),
+          }),
+        });
+
+        if (res.ok) {
+          break;
+        }
+      } catch {
+        setRetryCount(attempt + 1);
+      }
+    }
+
+    if (!res) {
+      setErrorMsg(
+        "Unable to complete signup request."
+      );
+
+      submissionLockRef.current = false;
+      setIsSubmitting(false);
+      setLoading(false);
+
+      return;
+    }
     let result: { error?: string } = {};
     let error: { message: string } | null = null;
     try {
@@ -115,9 +181,18 @@ export default function Signup() {
         error = {message: result.error}
       }
     } catch {
-      error = {message: "Failed to parse server response."}
-      setErrorMsg("An unexpected error occurred. Please try again.");
+      error = {
+        message: "Failed to parse server response."
+      };
+
+      setErrorMsg(
+        "An unexpected error occurred. Please try again."
+      );
+
+      submissionLockRef.current = false;
+      setIsSubmitting(false);
       setLoading(false);
+
       return;
     }
 
@@ -131,12 +206,23 @@ export default function Signup() {
         setErrorMsg(error.message);
       }
     } else {
-      setSuccessMsg("Account created! Please check your email to confirm your account.");
+      setSuccessMsg(
+        "Account created! Please check your email to confirm your account."
+      );
+
       setTimeout(() => {
-        router.push(nextPath ? `/login?next=${encodeURIComponent(nextPath)}` : "/login");
+        router.push(
+          nextPath
+            ? `/login?next=${encodeURIComponent(nextPath)}`
+            : "/login"
+        );
       }, 2500);
     }
-  };
+
+    submissionLockRef.current = false;
+    setIsSubmitting(false);
+    setLoading(false);
+    };
 
   const inputClass =
     "w-full p-2 mb-3 bg-zinc-800 rounded border border-zinc-700 focus:outline-none focus:border-indigo-500";
@@ -247,16 +333,31 @@ export default function Signup() {
         {errorMsg && (
           <p className="mb-3 rounded bg-red-900/50 border border-red-700 px-3 py-2 text-sm text-red-300">{errorMsg}</p>
         )}
+
+        {submissionId && (
+          <p className="mb-2 text-xs text-zinc-400">
+            Submission ID: {submissionId}
+          </p>
+        )}
+
+        {retryCount > 0 && (
+          <p className="mb-2 text-xs text-yellow-400">
+            Retry attempts: {retryCount}
+          </p>
+        )}
+
         {successMsg && (
           <p className="mb-3 rounded bg-green-900/50 border border-green-700 px-3 py-2 text-sm text-green-300">{successMsg}</p>
         )}
 
         <button
           onClick={handleSignup}
-          disabled={loading}
+          disabled={loading || isSubmitting}
           className="w-full rounded bg-indigo-600 hover:bg-indigo-500 p-2 font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-70"
         >
-          {loading ? "Creating account..." : "Sign Up"}
+          {loading || isSubmitting
+            ? "Processing..."
+            : "Sign Up"}
         </button>
 
         <p className="mt-4 text-center text-sm text-zinc-400">
