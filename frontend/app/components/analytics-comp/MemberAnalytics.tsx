@@ -21,6 +21,13 @@ type MemberAnalyticsSummary = {
   totalMembers: number;
 };
 
+type MetricAdapter = {
+  label: string;
+  value: (member: MemberPerformance) => number;
+  color: string;
+};
+
+
 function getCompletionRate(
   completed: number,
   assigned: number
@@ -112,6 +119,25 @@ function buildMemberLookup(
   );
 }
 
+const metricAdapters: MetricAdapter[] = [
+  {
+    label: "Completion",
+    value: (member) =>
+      getCompletionRate(
+        member.completed,
+        member.assigned
+      ),
+    color: "bg-primary",
+  },
+  {
+    label: "Review Load",
+    value: (member) =>
+      getReviewLoad(member.reviews),
+    color: "bg-tertiary",
+  },
+];
+
+
 export default function MemberAnalytics({
   members,
   selectedMember,
@@ -142,6 +168,21 @@ export default function MemberAnalytics({
           members
         ),
       [members]
+    );
+
+  const activeMetrics =
+    useMemo(
+      () =>
+        metricAdapters.map(
+          (adapter) => ({
+            label: adapter.label,
+            value: adapter.value(
+              selectedMember
+            ),
+            color: adapter.color,
+          })
+        ),
+      [selectedMember]
     );
 
   const {
@@ -269,27 +310,28 @@ export default function MemberAnalytics({
               </svg>
 
               <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-primary" />
+                {activeMetrics.map(
+                  (metric) => (
+                    <div
+                      key={metric.label}
+                      className="flex items-center gap-2"
+                    >
+                      <span
+                        className={`w-2 h-2 rounded-full ${metric.color}`}
+                      />
 
-                  <span className="font-data-viz text-data-viz">
-                    {completionRate}% Completed
-                  </span>
-                </div>
+                      <span className="font-data-viz text-data-viz">
+                        {metric.value}% {metric.label}
+                      </span>
+                    </div>
+                  )
+                )}
 
                 <div className="flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-secondary-container" />
 
                   <span className="font-data-viz text-data-viz">
                     {otherPercent}% Open
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-tertiary" />
-
-                  <span className="font-data-viz text-data-viz">
-                    {reviewLoad}% Review Load
                   </span>
                 </div>
               </div>
@@ -326,9 +368,9 @@ export default function MemberAnalytics({
                 </span>
 
                 <span className="text-xs">
-                  {memberMetricsLookup.get(
-                    member.id
-                  )?.completionRate ?? 0}
+                  {metricAdapters[0].value(
+                    member
+                  )}
                   %
                 </span>
               </div>
