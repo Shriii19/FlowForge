@@ -3,7 +3,12 @@
 import { Plus, CalendarClock, Users, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { isSupabaseConfigured, supabase } from "@/app/lib/supabase";
-import { useState, useEffect, useMemo } from "react";
+import {
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
 import ProjectDialog from "@/app/components/ProjectDialog";
 
 
@@ -45,6 +50,15 @@ export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  const requestGenerationRef =
+    useRef(0);
+
+  const abortControllerRef =
+    useRef<AbortController | null>(null);
+
+  const [activeRequestId, setActiveRequestId] =
+    useState(0);
+
   // Debounce search term
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -65,20 +79,64 @@ export default function ProjectsPage() {
          setIsLoading(false);
          return;
         }
+        abortControllerRef.current?.abort();
+
+        const controller =
+          new AbortController();
+
+        abortControllerRef.current =
+          controller;
+
+        const requestId =
+          ++requestGenerationRef.current;
+
+        setActiveRequestId(
+          requestId
+        );
+
         setIsLoading(true);
       try {
-        const res = await fetch("/api/projects", {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        });
+        const res = await fetch(
+          "/api/projects",
+          {
+            signal:
+              controller.signal,
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
+        );
         if (!res.ok) throw new Error("Failed to load the Projects");
         const body = await res.json();
+
+        if (
+          requestId !==
+          requestGenerationRef.current
+        ) {
+          return;
+        }
+
         setProjects(body.projects || []);
       } catch (error) {
-        console.error("Error in loading projects ", error);
+        if (
+          error instanceof Error &&
+          error.name === "AbortError"
+        ) {
+          return;
+        }
+
+        console.error(
+          "Error in loading projects ",
+          error
+        );
+
       } finally{
-        setIsLoading(false);
+        if (
+          requestId ===
+          requestGenerationRef.current
+        ) {
+          setIsLoading(false);
+        }
       }
     };
 
@@ -97,7 +155,10 @@ export default function ProjectsPage() {
       loadProjects(session?.access_token);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      abortControllerRef.current?.abort();
+      subscription.unsubscribe();
+    };
   }, []);
 
   const searchableProjects = useMemo(
