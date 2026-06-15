@@ -4,23 +4,30 @@ import React from "react";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
 import { KanbanCard } from "./KanbanCard";
-import { Task } from "./KanbanBoard";
+import type { Task, Column } from "./KanbanBoard";
 import { Plus } from "lucide-react";
 
-interface Props {
-  column: {
-    id: string;
-    title: string;
-  };
+/* ---------------- TYPES ---------------- */
+
+type Props = {
+  column: Column;
   tasks: Task[];
   onCreateTask: () => void;
   onDeleteTask: (id: string) => void;
   onEditTask: (task: Task) => void;
-}
+};
 
-export function KanbanColumn({ column, tasks, onCreateTask, onDeleteTask, onEditTask  }: Props) {
+/* ---------------- COMPONENT ---------------- */
+
+export function KanbanColumn({
+  column,
+  tasks,
+  onCreateTask,
+  onDeleteTask,
+  onEditTask,
+}: Props) {
   const { setNodeRef, isOver } = useDroppable({
-    id: column.id,
+    id: column.id, // ✅ now correctly typed as TaskStatus
     data: {
       type: "Column",
       column,
@@ -29,13 +36,17 @@ export function KanbanColumn({ column, tasks, onCreateTask, onDeleteTask, onEdit
 
   return (
     <div className="flex flex-1 flex-col rounded-xl border border-(--line) bg-(--bg-soft) overflow-hidden h-full">
+      
+      {/* HEADER */}
       <div className="flex items-center justify-between border-b border-(--line) bg-(--bg) p-4">
         <h3 className="font-semibold text-slate-800">{column.title}</h3>
+
         <span className="flex h-6 w-6 items-center justify-center rounded-full bg-(--bg-soft) text-xs font-medium text-slate-500 border border-(--line)">
           {tasks.length}
         </span>
       </div>
 
+      {/* DROP AREA */}
       <div
         ref={setNodeRef}
         className={`flex-1 p-3 transition-colors ${
@@ -43,8 +54,11 @@ export function KanbanColumn({ column, tasks, onCreateTask, onDeleteTask, onEdit
         }`}
         style={{ minHeight: "200px" }}
       >
-        <div className="flex flex-col gap-3">
-          <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+        <SortableContext
+          items={tasks.map((t) => t.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          <div className="flex flex-col gap-3">
             {tasks.length === 0 ? (
               <div className="flex h-32 items-center justify-center text-sm text-gray-400 border-2 border-dashed rounded-lg">
                 No tasks yet
@@ -59,10 +73,11 @@ export function KanbanColumn({ column, tasks, onCreateTask, onDeleteTask, onEdit
                 />
               ))
             )}
-          </SortableContext>
-        </div>
+          </div>
+        </SortableContext>
       </div>
 
+      {/* FOOTER */}
       <div className="border-t border-(--line) p-3">
         <button
           onClick={onCreateTask}
