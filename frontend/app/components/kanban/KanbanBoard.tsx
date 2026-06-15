@@ -311,8 +311,6 @@ export function KanbanBoard() {
 
         updateBufferRef.current.clear();
 
-        renderBatchRef.current += 1;
-
         setRenderMetrics(
           (current) => ({
             ...current,

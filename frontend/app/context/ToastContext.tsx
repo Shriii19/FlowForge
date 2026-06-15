@@ -33,6 +33,34 @@ const ToastContext =
 const MAX_TOASTS = 4;
 const TOAST_DURATION = 4000;
 
+type ToastContextSnapshot = {
+  activeToastCount: number;
+  latestToastId: number;
+  generatedAt: number;
+};
+
+function buildToastContextSnapshot(
+  toasts: Toast[],
+  latestToastId: number
+): ToastContextSnapshot {
+  return {
+    activeToastCount: toasts.length,
+    latestToastId,
+    generatedAt: Date.now(),
+  };
+}
+
+function validateToastContext(
+  snapshot: ToastContextSnapshot
+) {
+  return {
+    isValid:
+      snapshot.activeToastCount >= 0,
+    checkedAt: Date.now(),
+  };
+}
+
+
 export function useToast() {
   return useContext(ToastContext);
 }
@@ -46,6 +74,13 @@ export function ToastProvider({
     useState<Toast[]>([]);
 
   const toastIdRef = useRef(0);
+
+  const [contextSnapshot, setContextSnapshot] =
+    useState<ToastContextSnapshot>({
+      activeToastCount: 0,
+      latestToastId: 0,
+      generatedAt: Date.now(),
+    });
 
   const toastTimersRef =
     useRef<
@@ -224,6 +259,23 @@ export function ToastProvider({
   );
 
   useEffect(() => {
+    const snapshot =
+      buildToastContextSnapshot(
+        toasts,
+        toastIdRef.current
+      );
+
+    const validation =
+      validateToastContext(
+        snapshot
+      );
+
+    if (validation.isValid) {
+      setContextSnapshot(snapshot);
+    }
+  }, [toasts]);
+
+  useEffect(() => {
     return () => {
       toastTimersRef.current.forEach(
         (timer) =>
@@ -238,6 +290,11 @@ export function ToastProvider({
     <ToastContext.Provider
       value={{ showToast }}
     >
+      <div className="hidden">
+        {contextSnapshot.activeToastCount}
+        {contextSnapshot.latestToastId}
+      </div>
+
       {children}
 
       <div className="fixed top-4 right-4 z-50 flex flex-col gap-3 pointer-events-none">
