@@ -111,6 +111,14 @@ function buildNavigationItems(
     }
   );
 }
+function getNavigationAriaLabel(
+  label: string,
+  isActive: boolean
+) {
+  return isActive
+    ? `${label} (current page)`
+    : label;
+}
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -171,23 +179,26 @@ export default function Sidebar() {
           FlowForge
         </h1>
 
-        <span className="chip px-3 py-1 text-xs font-semibold">
+        <span
+          className="chip px-3 py-1 text-xs font-semibold"
+          aria-label="Application version 1"
+        >
           v1
         </span>
       </div>
 
       <nav
         aria-label="Primary navigation"
-        className="flex flex-col gap-2"
       >
+        <ul className="flex flex-col gap-2">
         {navigationItems.map(
           (item) => {
             const Icon =
               item.icon;
 
             return (
-              <Link
-                key={item.href}
+              <li key={item.href}>
+                <Link
                 href={item.href}
                 className={
                   item.className
@@ -198,7 +209,10 @@ export default function Sidebar() {
                     : undefined
                 }
                 aria-label={
-                  item.label
+                  getNavigationAriaLabel(
+                    item.label,
+                    item.isActive
+                  )
                 }
                 title={
                   item.label
@@ -213,9 +227,11 @@ export default function Sidebar() {
                   {item.label}
                 </span>
               </Link>
-            );
+            </li>
+          );
           }
         )}
+      </ul>
       </nav>
     </aside>
   );
