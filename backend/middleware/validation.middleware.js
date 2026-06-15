@@ -9,8 +9,50 @@ const VALID_TASK_STATUS = [
 
 const VALIDATION_VERSION = 1;
 
+const validationMetrics = {
+  validationAttempts: 0,
+  validationFailures: 0,
+  normalizedInputs: 0,
+};
+
+const MAX_USERNAME_LENGTH = 40;
+const MAX_TITLE_LENGTH = 120;
+const MAX_DESCRIPTION_LENGTH = 1000;
+
 function sanitizeText(value = "") {
   return xss(String(value).trim());
+}
+
+function normalizeInputValue(
+  value
+) {
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return "";
+  }
+
+  validationMetrics.normalizedInputs += 1;
+
+  return String(value).trim();
+}
+
+function validateRequiredField(
+  value
+) {
+  return (
+    normalizeInputValue(value)
+      .length > 0
+  );
+}
+
+function recordValidationAttempt() {
+  validationMetrics.validationAttempts += 1;
+}
+
+function recordValidationFailure() {
+  validationMetrics.validationFailures += 1;
 }
 
 function buildValidationMetadata(
@@ -55,6 +97,8 @@ function sendValidationFailure(
   message,
   code
 ) {
+  recordValidationFailure();
+
   return res.status(400).json(
     transformValidationError(
       field,
@@ -137,12 +181,27 @@ export function validateTask(
     position,
   } = req.body;
 
+  recordValidationAttempt();
+
   if (
-    !title ||
+    !req.body ||
+    typeof req.body !== "object"
+  ) {
+    return sendValidationFailure(
+      res,
+      "request",
+      "Invalid request payload"
+    );
+  }
+
+  if (
+    !validateRequiredField(
+      title
+    ) ||
     !validateLengthRule(
-      title,
+      normalizeInputValue(title),
       1,
-      120
+      MAX_TITLE_LENGTH
     )
   ) {
     return sendValidationFailure(
@@ -155,9 +214,11 @@ export function validateTask(
   if (
     description &&
     !validateLengthRule(
-      description,
+      normalizeInputValue(
+        description
+      ),
       0,
-      1000
+      MAX_DESCRIPTION_LENGTH
     )
   ) {
     return sendValidationFailure(
@@ -212,12 +273,27 @@ export function validateMessage(
     username,
   } = req.body;
 
+  recordValidationAttempt();
+
+  if (
+    !req.body ||
+    typeof req.body !== "object"
+  ) {
+    return sendValidationFailure(
+      res,
+      "request",
+      "Invalid request payload"
+    );
+  }
+
   if (
     username &&
     !validateLengthRule(
-      username,
+      normalizeInputValue(
+        username
+      ),
       2,
-      40
+      MAX_USERNAME_LENGTH
     )
   ) {
     return sendValidationFailure(
@@ -263,6 +339,19 @@ export function validateFeedItem(
     body,
     type,
   } = req.body;
+
+  recordValidationAttempt();
+
+  if (
+    !req.body ||
+    typeof req.body !== "object"
+  ) {
+    return sendValidationFailure(
+      res,
+      "request",
+      "Invalid request payload"
+    );
+  }
 
   if (
     !title ||
@@ -328,6 +417,12 @@ export function getValidationMetrics() {
       VALIDATION_VERSION,
     supportedStatuses:
       VALID_TASK_STATUS.length,
+    validationAttempts:
+      validationMetrics.validationAttempts,
+    validationFailures:
+      validationMetrics.validationFailures,
+    normalizedInputs:
+      validationMetrics.normalizedInputs,
     timestamp:
       Date.now(),
   };
