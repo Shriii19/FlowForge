@@ -24,18 +24,16 @@ type RankedMember = MemberPerformance & {
 function compareMembers(
   a: MemberPerformance,
   b: MemberPerformance,
-  sortKey: LeaderboardSortKey
+  sortKey: LeaderboardSortKey,
 ) {
   if (sortKey === "score") {
-    const scoreDifference =
-      impactScore(b) - impactScore(a);
+    const scoreDifference = impactScore(b) - impactScore(a);
 
     if (scoreDifference !== 0) {
       return scoreDifference;
     }
   } else {
-    const metricDifference =
-      b[sortKey] - a[sortKey];
+    const metricDifference = b[sortKey] - a[sortKey];
 
     if (metricDifference !== 0) {
       return metricDifference;
@@ -55,10 +53,10 @@ function compareMembers(
 
 function buildRankedLeaderboard(
   members: MemberPerformance[],
-  sortKey: LeaderboardSortKey
+  sortKey: LeaderboardSortKey,
 ): RankedMember[] {
-  const sortedMembers = [...members].sort(
-    (a, b) => compareMembers(a, b, sortKey)
+  const sortedMembers = [...members].sort((a, b) =>
+    compareMembers(a, b, sortKey),
   );
 
   return sortedMembers.map((member, index) => ({
@@ -68,7 +66,6 @@ function buildRankedLeaderboard(
   }));
 }
 
-
 export default function SprintLeaderboard({
   sprint,
   members,
@@ -76,10 +73,7 @@ export default function SprintLeaderboard({
   onSortChange,
 }: SprintLeaderboardProps) {
   const sortedRows = useMemo(() => {
-    return buildRankedLeaderboard(
-      members,
-      sortKey
-    );
+    return buildRankedLeaderboard(members, sortKey);
   }, [members, sortKey]);
 
   return (
@@ -124,32 +118,67 @@ export default function SprintLeaderboard({
                 <th className="px-card-padding py-4">Member</th>
                 <th className="px-card-padding py-4">Stories Resolved</th>
                 <th className="px-card-padding py-4">Peer Reviews</th>
-                <th className="px-card-padding py-4 text-right">Impact Score</th>
+                <th className="px-card-padding py-4 text-right">
+                  Impact Score
+                </th>
               </tr>
             </thead>
             <tbody className="font-body-md">
               {sortedRows.map((row, index) => (
-                <tr key={row.id} className="border-b border-outline-variant/50 hover:bg-surface-container-low transition-colors">
+                <tr
+                  key={row.id}
+                  className={`border-b border-outline-variant/50 transition-colors hover:bg-surface-container-low
+    ${
+      row.rank === 1
+        ? "bg-yellow-50"
+        : row.rank === 2
+          ? "bg-gray-50"
+          : row.rank === 3
+            ? "bg-orange-50"
+            : ""
+    }`}
+                >
                   <td className="px-card-padding py-4 font-bold text-primary">
-                    {row.rank.toString().padStart(2, "0")}
+                    {row.rank === 1
+                      ? "🥇"
+                      : row.rank === 2
+                        ? "🥈"
+                        : row.rank === 3
+                          ? "🥉"
+                          : row.rank.toString().padStart(2, "0")}
                   </td>
                   <td className="px-card-padding py-4">
                     <div className="flex items-center gap-3">
-                      <img alt={row.name} className="w-8 h-8 rounded-full" src={row.image} />
+                      <img
+                        alt={row.name}
+                        className="w-8 h-8 rounded-full"
+                        src={row.image}
+                      />
                       <div>
                         <span>{row.name}</span>
-                        <p className="text-xs text-on-surface-variant">{row.focus}</p>
+                        <p className="text-xs text-on-surface-variant">
+                          {row.focus}
+                        </p>
                       </div>
                     </div>
                   </td>
-                  <td className="px-card-padding py-4 font-data-viz">{row.completed}</td>
-                  <td className="px-card-padding py-4 font-data-viz">{row.reviews}</td>
-                  <td className="px-card-padding py-4 text-right font-bold text-primary">{row.score}</td>
+                  <td className="px-card-padding py-4 font-data-viz">
+                    {row.completed}
+                  </td>
+                  <td className="px-card-padding py-4 font-data-viz">
+                    {row.reviews}
+                  </td>
+                  <td className="px-card-padding py-4 text-right font-bold text-primary">
+                    {row.score}
+                  </td>
                 </tr>
               ))}
               {sortedRows.length === 0 && (
                 <tr>
-                  <td className="px-card-padding py-8 text-center text-on-surface-variant" colSpan={5}>
+                  <td
+                    className="px-card-padding py-8 text-center text-on-surface-variant"
+                    colSpan={5}
+                  >
                     No members match the current search.
                   </td>
                 </tr>
