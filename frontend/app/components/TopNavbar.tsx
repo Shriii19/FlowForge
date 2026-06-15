@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import NotificationsPanel from "./NotificationsPanel";
 
@@ -27,6 +27,35 @@ const NAVIGATION_ITEMS = [
 export default function TopNavbar() {
   const pathname = usePathname();
 
+  const [persistedRoute, setPersistedRoute] =
+    useState("Home");
+
+  const [navigationRecovered, setNavigationRecovered] =
+    useState(false);
+
+  useEffect(() => {
+    const savedRoute =
+      sessionStorage.getItem(
+        "flowforge-active-route"
+      );
+
+    if (savedRoute) {
+      setPersistedRoute(savedRoute);
+      setNavigationRecovered(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!pathname) {
+      return;
+    }
+
+    sessionStorage.setItem(
+      "flowforge-last-path",
+      pathname
+    );
+  }, [pathname]);
+
   const navigationItems = useMemo(() => {
     return NAVIGATION_ITEMS.map((item) => ({
       ...item,
@@ -41,6 +70,17 @@ export default function TopNavbar() {
       )?.label ?? "Home"
     );
   }, [navigationItems]);
+
+  useEffect(() => {
+    sessionStorage.setItem(
+      "flowforge-active-route",
+      activeRouteLabel
+    );
+
+    setPersistedRoute(
+      activeRouteLabel
+    );
+  }, [activeRouteLabel]);
 
   const profileImage = useMemo(
     () => "https://i.pravatar.cc/80?img=32",
@@ -90,8 +130,23 @@ export default function TopNavbar() {
               font-medium
             "
           >
-            {activeRouteLabel}
+            {persistedRoute}
           </span>
+
+          {navigationRecovered && (
+            <span
+              className="
+                hidden xl:inline-flex
+                rounded-full
+                bg-primary-container
+                px-2 py-1
+                text-[10px]
+                font-medium
+              "
+            >
+              State Restored
+            </span>
+          )}
 
           <button
             className="
