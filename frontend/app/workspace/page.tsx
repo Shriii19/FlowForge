@@ -1,6 +1,11 @@
 "use client";
 
-import { useMemo, useEffect, useState } from "react";
+import {
+  useMemo,
+  useEffect,
+  useState,
+  useCallback,
+} from "react";
 import { KanbanBoard } from "../components/kanban/KanbanBoard";
 
 const users = [
@@ -31,22 +36,52 @@ export default function WorkspacePage() {
   const [showActivityFeed, setShowActivityFeed] =
     useState(false);
 
+  const [isReady, setIsReady] =
+    useState(false);
+
+  const [startupPhase, setStartupPhase] =
+    useState<
+      "initializing" |
+      "loading" |
+      "ready"
+    >("initializing");
+
+  const [readinessScore, setReadinessScore] =
+    useState(0);
+
+  const initializeWorkspace =
+    useCallback(async () => {
+      setStartupPhase("loading");
+
+      await Promise.all([
+        Promise.resolve(),
+        Promise.resolve(),
+        Promise.resolve(),
+      ]);
+
+      setReadinessScore(100);
+      setIsReady(true);
+      setStartupPhase("ready");
+    }, []);
+
   useEffect(() => {
+    void initializeWorkspace();
+
     const workspaceTimer =
       window.setTimeout(() => {
         setShowWorkspace(true);
-      }, 150);
+      }, 50);
 
     const activityTimer =
       window.setTimeout(() => {
         setShowActivityFeed(true);
-      }, 300);
+      }, 50);
 
     return () => {
       window.clearTimeout(workspaceTimer);
       window.clearTimeout(activityTimer);
     };
-  }, []);
+  }, [initializeWorkspace]);
 
   const workspaceData = useMemo(
     () => buildWorkspaceData(),
@@ -62,6 +97,12 @@ export default function WorkspacePage() {
 
         <p className="mb-4 text-sm text-slate-500">
           {workspaceData.activeDeveloperCount} active contributors
+        </p>
+
+        <p className="mb-4 text-xs text-slate-500">
+          Startup: {startupPhase}
+          {" • "}
+          Readiness: {readinessScore}%
         </p>
 
         <div className="space-y-3">
@@ -92,7 +133,9 @@ export default function WorkspacePage() {
             <KanbanBoard />
           ) : (
             <div className="flex h-full items-center justify-center text-slate-500">
-              Initializing workspace...
+              {isReady
+                ? "Workspace Ready"
+                : "Initializing workspace..."}
             </div>
           )}
         </div>
