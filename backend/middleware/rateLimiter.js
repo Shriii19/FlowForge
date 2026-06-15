@@ -105,6 +105,43 @@ function detectBurstTraffic(
   return burstDetected;
 }
 
+function calculateRateLimitUtilization(
+  clientKey
+) {
+  const accounting =
+    requestAccounting.get(
+      clientKey
+    );
+
+  if (!accounting) {
+    return 0;
+  }
+
+  return Math.min(
+    100,
+    Math.round(
+      (accounting.count /
+        RATE_LIMIT_MAX) *
+        100
+    )
+  );
+}
+
+function buildTrafficDiagnostics(
+  clientKey
+) {
+  return {
+    utilization:
+      calculateRateLimitUtilization(
+        clientKey
+      ),
+    trackedClients:
+      requestAccounting.size,
+    throttledRequests:
+      enforcementMetrics.throttledRequests,
+  };
+}
+
 function buildThrottleMetadata(
   clientKey
 ) {
@@ -124,6 +161,10 @@ function buildThrottleMetadata(
           )
         : false,
     fairnessScore: 100,
+    trafficDiagnostics:
+      buildTrafficDiagnostics(
+        clientKey
+      ),
   };
 }
 
@@ -176,6 +217,12 @@ export function getRateLimitMetrics() {
     ...enforcementMetrics,
     trackedClients:
       requestAccounting.size,
+    burstThreshold:
+      BURST_THRESHOLD,
+    rateLimitWindow:
+      RATE_LIMIT_WINDOW,
+    rateLimitMax:
+      RATE_LIMIT_MAX,
   };
 }
 
