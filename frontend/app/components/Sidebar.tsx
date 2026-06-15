@@ -46,38 +46,41 @@ function getNavigationState(
   };
 }
 
-const NAVIGATION_ITEMS: NavigationItem[] =
-  [
-    {
-      href: "/dashboard",
-      label: "Dashboard",
-      icon: LayoutDashboard,
-    },
-    {
-      href: "/projects",
-      label: "Projects",
-      icon: FolderKanban,
-    },
-    {
-      href: "/workspace",
-      label: "Workspace",
-      icon: Blocks,
-    },
-    {
-      href: "/insights/overview",
-      label: "Insights",
-      icon: BarChart3,
-    },
-    {
-      href: "/chat",
-      label: "Chat",
-      icon: MessageSquare,
-    },
-  ];
+const NAVIGATION_ITEMS: NavigationItem[] = [
+  {
+    href: "/dashboard",
+    label: "Dashboard",
+    icon: LayoutDashboard,
+  },
+  {
+    href: "/projects",
+    label: "Projects",
+    icon: FolderKanban,
+  },
+  {
+    href: "/workspace",
+    label: "Workspace",
+    icon: Blocks,
+  },
+  {
+    href: "/insights/overview",
+    label: "Insights",
+    icon: BarChart3,
+  },
+  {
+    href: "/chat",
+    label: "Chat",
+    icon: MessageSquare,
+  },
+];
 
 function persistActiveRoute(
   pathname: string
 ) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
   sessionStorage.setItem(
     "sidebar-active-route",
     pathname
@@ -85,6 +88,10 @@ function persistActiveRoute(
 }
 
 function getPersistedRoute() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
   return sessionStorage.getItem(
     "sidebar-active-route"
   );
@@ -111,6 +118,7 @@ function buildNavigationItems(
     }
   );
 }
+
 function getNavigationAriaLabel(
   label: string,
   isActive: boolean
@@ -121,16 +129,19 @@ function getNavigationAriaLabel(
 }
 
 export default function Sidebar() {
-  const pathname = usePathname();
+  const pathname =
+    usePathname() ?? "";
 
   const [activePath, setActivePath] =
-    useState(pathname);
+    useState<string>(
+      pathname
+    );
 
   const saveActiveRoute =
     useCallback(
-      (pathname: string) => {
+      (currentPath: string) => {
         persistActiveRoute(
-          pathname
+          currentPath
         );
       },
       []
@@ -142,7 +153,10 @@ export default function Sidebar() {
     if (pathname) {
       saveActiveRoute(pathname);
     }
-  }, [pathname, saveActiveRoute]);
+  }, [
+    pathname,
+    saveActiveRoute,
+  ]);
 
   useEffect(() => {
     const persistedPath =
@@ -152,9 +166,11 @@ export default function Sidebar() {
       persistedPath &&
       !activePath
     ) {
-      setActivePath(persistedPath);
+      setActivePath(
+        persistedPath
+      );
     }
-  }, []);
+  }, [activePath]);
 
   const navigationItems =
     useMemo(
@@ -187,51 +203,47 @@ export default function Sidebar() {
         </span>
       </div>
 
-      <nav
-        aria-label="Primary navigation"
-      >
+      <nav aria-label="Primary navigation">
         <ul className="flex flex-col gap-2">
-        {navigationItems.map(
-          (item) => {
-            const Icon =
-              item.icon;
+          {navigationItems.map(
+            (item) => {
+              const Icon =
+                item.icon;
 
-            return (
-              <li key={item.href}>
-                <Link
-                href={item.href}
-                className={
-                  item.className
-                }
-                aria-current={
-                  item.isActive
-                    ? "page"
-                    : undefined
-                }
-                aria-label={
-                  getNavigationAriaLabel(
-                    item.label,
-                    item.isActive
-                  )
-                }
-                title={
-                  item.label
-                }
-              >
-                <Icon
-                  size={16}
-                  aria-hidden="true"
-                />
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    className={
+                      item.className
+                    }
+                    aria-current={
+                      item.isActive
+                        ? "page"
+                        : undefined
+                    }
+                    aria-label={getNavigationAriaLabel(
+                      item.label,
+                      item.isActive
+                    )}
+                    title={
+                      item.label
+                    }
+                  >
+                    <Icon
+                      size={16}
+                      aria-hidden="true"
+                    />
 
-                <span className="text-sm font-medium">
-                  {item.label}
-                </span>
-              </Link>
-            </li>
-          );
-          }
-        )}
-      </ul>
+                    <span className="text-sm font-medium">
+                      {item.label}
+                    </span>
+                  </Link>
+                </li>
+              );
+            }
+          )}
+        </ul>
       </nav>
     </aside>
   );
