@@ -1,3 +1,8 @@
+import { logEvent } from "./utils/logger.js";
+import {
+  incrementMetric,
+  getMetrics,
+} from "./utils/workflowMetrics.js";
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -56,6 +61,17 @@ app.get("/", (req, res) => {
   res.send("FlowForge Backend Running 🚀");
 });
 
+app.get("/api/diagnostics/workflows", (req, res) => {
+  res.status(200).json({
+    uptimeSeconds: process.uptime(),
+    connectedUsers: onlineUsers.size,
+    trackedReactionMessages: Object.keys(reactionsStore).length,
+    metrics: getMetrics(),
+    generatedAt: new Date().toISOString(),
+  });
+});
+
+
 app.use("/api/chat", chatRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/analytics", analyticsRoutes);
@@ -63,7 +79,12 @@ app.use("/api/feed", feedRoutes);
 app.use("/api/insights", insightsRoutes);
 
 io.on("connection", (socket) => {
-  console.log("⚡ User connected:", socket.id);
+  incrementMetric("connections");
+
+  logEvent({
+    event: "SOCKET_CONNECTED",
+    socketId: socket.id,
+  });
 
   // JOIN ROOM
   socket.on("join", ({ username, room }) => {
@@ -80,11 +101,27 @@ io.on("connection", (socket) => {
       .filter((user) => user.room === activeRoom)
       .map((user) => user.username);
 
+    incrementMetric("joins");
+
+    logEvent({
+      event: "ROOM_JOINED",
+      socketId: socket.id,
+      room: activeRoom,
+      metadata: {
+        username,
+        onlineUsers: roomUsers.length,
+      },
+    });
+
     io.to(activeRoom).emit("onlineUsers", roomUsers);
-  });
+    });
 
   // REACTIONS
   socket.on("react", ({ messageId, emoji, username }) => {
+
+    const reactionStartTime = Date.now();
+
+    incrementMetric("reactions");
     // Evict the oldest tracked message when the cap is reached and this
     // messageId has not been seen before, keeping the store bounded.
     if (!reactionsStore[messageId] && Object.keys(reactionsStore).length >= MAX_REACTION_ENTRIES) {
@@ -118,6 +155,18 @@ io.on("connection", (socket) => {
 
     const userData = onlineUsers.get(socket.id);
 
+    logEvent({
+      event: "REACTION_UPDATED",
+      socketId: socket.id,
+      room: userData?.room,
+      metadata: {
+        messageId,
+        emoji,
+        reactionCount: formatted[emoji] || 0,
+        durationMs: Date.now() - reactionStartTime,
+      },
+    });
+
     if (userData?.room) {
       io.to(userData.room).emit("reactionUpdate", {
         messageId,
@@ -130,14 +179,33 @@ io.on("connection", (socket) => {
   socket.on("task-moved", ({ room, task }) => {
     if (!room) return;
 
-    console.log("Task moved:", task);
+    incrementMetric("taskMoves");
+
+    logEvent({
+      event: "TASK_MOVED",
+      socketId: socket.id,
+      room,
+      metadata: {
+        taskId: task?.id,
+        taskStatus: task?.status,
+      },
+    });
 
     io.to(room).emit("task-moved", task);
   });
 
   // MESSAGE SEEN
   socket.on("seen", ({ messageId, room }) => {
-    const userData = onlineUsers.get(socket.id);
+    incrementMetric("seenEvents");
+
+    logEvent({
+      event: "MESSAGE_SEEN",
+      socketId: socket.id,
+      room,
+      metadata: {
+        messageId,
+      },
+    });
 
     if (room) {
       io.to(room).emit("messageSeen", messageId);
@@ -158,7 +226,37 @@ io.on("connection", (socket) => {
       io.to(disconnectedUser.room).emit("onlineUsers", roomUsers);
     }
 
-    console.log("User disconnected:", socket.id);
+    incrementMetric("disconnections");
+
+    logEvent({
+      event: "SOCKET_DISCONNECTED",
+      socketId: socket.id,
+      room: disconnectedUser?.room,
+      metadata: {
+        username: disconnectedUser?.username,
+      },
+    });
+  });
+});
+
+process.on("uncaughtException", (error) => {
+  logEvent({
+    level: "ERROR",
+    event: "UNCAUGHT_EXCEPTION",
+    metadata: {
+      message: error.message,
+      stack: error.stack,
+    },
+  });
+});
+
+process.on("unhandledRejection", (reason) => {
+  logEvent({
+    level: "ERROR",
+    event: "UNHANDLED_REJECTION",
+    metadata: {
+      reason: String(reason),
+    },
   });
 });
 
