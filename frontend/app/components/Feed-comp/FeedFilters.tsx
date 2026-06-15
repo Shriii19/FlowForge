@@ -1,3 +1,5 @@
+"use client";
+
 import { useMemo, useState, useEffect } from "react";
 import type { FeedFilter } from "./FeedHeader";
 
@@ -25,6 +27,24 @@ type FilterDescriptor = {
   name: FeedFilter;
   priority: number;
   active: boolean;
+  normalizedKey: string;
+};
+
+type FilterValidation = {
+  valid: boolean;
+  reason: string | null;
+};
+
+type FilterQueryMetadata = {
+  querySignature: string;
+  evaluatedAt: number;
+  filterCount: number;
+};
+
+type FilterEvaluationSummary = {
+  normalized: boolean;
+  validationPassed: boolean;
+  resultConsistency: boolean;
 };
 
 function createFilterState(
@@ -37,6 +57,14 @@ function createFilterState(
   };
 }
 
+function normalizeFilterName(
+  filter: FeedFilter
+) {
+  return filter
+    .toLowerCase()
+    .trim();
+}
+
 function normalizeFilters(
   active: FeedFilter
 ): FilterDescriptor[] {
@@ -46,12 +74,60 @@ function normalizeFilters(
       priority: index,
       active:
         filter === active,
+      normalizedKey:
+        normalizeFilterName(
+          filter
+        ),
     })
   ).sort(
     (a, b) =>
       a.priority -
       b.priority
   );
+}
+
+function validateFilterSelection(
+  filter: FeedFilter
+): FilterValidation {
+  const exists =
+    FILTERS.includes(filter);
+
+  return {
+    valid: exists,
+    reason: exists
+      ? null
+      : "Unknown filter",
+  };
+}
+
+function buildQueryMetadata(
+  filters: FilterDescriptor[]
+): FilterQueryMetadata {
+  return {
+    querySignature:
+      filters
+        .map(
+          (filter) =>
+            filter.normalizedKey
+        )
+        .join("|"),
+    evaluatedAt:
+      Date.now(),
+    filterCount:
+      filters.length,
+  };
+}
+
+function buildEvaluationSummary(
+  validation: FilterValidation
+): FilterEvaluationSummary {
+  return {
+    normalized: true,
+    validationPassed:
+      validation.valid,
+    resultConsistency:
+      validation.valid,
+  };
 }
 
 export default function FeedFilters({
@@ -89,12 +165,55 @@ export default function FeedFilters({
       ]
     );
 
+  const filterValidation =
+    useMemo(
+      () =>
+        validateFilterSelection(
+          filterState.activeFilter
+        ),
+      [
+        filterState.activeFilter,
+      ]
+    );
+
+  const queryMetadata =
+    useMemo(
+      () =>
+        buildQueryMetadata(
+          normalizedFilters
+        ),
+      [normalizedFilters]
+    );
+
+  const evaluationSummary =
+    useMemo(
+      () =>
+        buildEvaluationSummary(
+          filterValidation
+        ),
+      [filterValidation]
+    );
+
   return (
     <div className="flex bg-surface-container-high rounded-lg p-1">
       <div className="hidden">
         Filter Evaluation v
         {
           filterState.evaluationVersion
+        }
+      </div>
+
+      <div className="hidden">
+        {
+          queryMetadata.querySignature
+        }
+      </div>
+
+      <div className="hidden">
+        {
+          evaluationSummary.validationPassed
+            ? "valid"
+            : "invalid"
         }
       </div>
 
@@ -112,11 +231,23 @@ export default function FeedFilters({
             data-active={
               filter.active
             }
-            onClick={() =>
-              onChange(
-                filter.name
-              )
+            data-normalized-key={
+              filter.normalizedKey
             }
+            onClick={() => {
+              const validation =
+                validateFilterSelection(
+                  filter.name
+                );
+
+              if (
+                validation.valid
+              ) {
+                onChange(
+                  filter.name
+                );
+              }
+            }}
             className={`px-4 py-1.5 rounded-md text-label-md font-label-md transition-colors ${
               filter.active
                 ? "bg-white shadow-sm text-primary"
