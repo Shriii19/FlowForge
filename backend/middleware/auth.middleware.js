@@ -1,123 +1,119 @@
 import supabase from "../config/db.js";
 
-function createAuthError(
-  message,
-  code = "AUTHENTICATION_ERROR"
-) {
+/* -------------------------------------------------------------------------- */
+/*                               ERROR HANDLING                               */
+/* -------------------------------------------------------------------------- */
+
+function createAuthError(message, code = "AUTHENTICATION_ERROR") {
   return {
     success: false,
     error: {
       code,
       message,
+      severity: "high",
       timestamp: Date.now(),
+      requestId: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      diagnostics: {
+        nodeEnv: process.env.NODE_ENV || "unknown",
+        service: "auth-middleware",
+      },
     },
   };
 }
 
-function extractBearerToken(
-  authHeader
-) {
-  if (
-    !authHeader ||
-    typeof authHeader !==
-      "string"
-  ) {
-    return null;
-  }
+/* -------------------------------------------------------------------------- */
+/*                              TOKEN UTILITIES                               */
+/* -------------------------------------------------------------------------- */
 
-  if (
-    !authHeader.startsWith(
-      "Bearer "
-    )
-  ) {
-    return null;
-  }
+function extractBearerToken(authHeader) {
+  if (!authHeader) return null;
+  if (typeof authHeader !== "string") return null;
 
-  const token =
-    authHeader
-      .replace(
-        "Bearer ",
-        ""
-      )
-      .trim();
+  const trimmedHeader = authHeader.trim();
 
-  if (!token) {
-    return null;
-  }
+  if (!trimmedHeader.startsWith("Bearer ")) return null;
+
+  const token = trimmedHeader.split("Bearer ")[1]?.trim();
+
+  if (!token || token.length === 0) return null;
 
   return token;
 }
 
-function isValidTokenFormat(
-  token
-) {
-  return (
-    typeof token ===
-      "string" &&
-    token.length > 10
-  );
+function isValidTokenFormat(token) {
+  if (!token) return false;
+  if (typeof token !== "string") return false;
+
+  if (token.length < 10) return false;
+  if (token.includes("undefined")) return false;
+  if (token.includes("null")) return false;
+
+  return true;
 }
 
-async function resolveUserSession(
-  token
-) {
-  const {
-    data: { user },
-    error,
-  } =
-    await supabase.auth.getUser(
-      token
-    );
+/* -------------------------------------------------------------------------- */
+/*                            SUPABASE AUTH HANDLER                           */
+/* -------------------------------------------------------------------------- */
 
+async function resolveUserSession(token) {
+  try {
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser(token);
+
+    return {
+      user,
+      error,
+      success: !error && !!user,
+    };
+  } catch (err) {
+    return {
+      user: null,
+      error: err,
+      success: false,
+    };
+  }
+}
+
+function isAuthenticatedUser(user, error) {
+  return Boolean(user && !error);
+}
+
+/* -------------------------------------------------------------------------- */
+/*                          AUTH CONTEXT BUILDERS                             */
+/* -------------------------------------------------------------------------- */
+
+function createAuthContext(req, token) {
   return {
-    user,
-    error,
+    tokenLength: token?.length || 0,
+    requestPath: req.originalUrl,
+    requestMethod: req.method,
+    userAgent: req.headers["user-agent"] || "unknown",
+    ip: req.ip || req.headers["x-forwarded-for"] || "unknown",
+    validatedAt: Date.now(),
+    sessionScope: "api-request",
   };
 }
 
-function isAuthenticatedUser(
-  user,
-  error
-) {
-  return !error && !!user;
+function validateRequestIntegrity(req) {
+  if (!req) return false;
+  if (!req.headers) return false;
+  if (typeof req.headers !== "object") return false;
+
+  return true;
 }
 
-function createAuthContext(
-  req,
-  token
-) {
-  return {
-    tokenLength:
-      token?.length || 0,
-    requestPath:
-      req.originalUrl,
-    requestMethod:
-      req.method,
-    validatedAt:
-      Date.now(),
-  };
-}
+/* -------------------------------------------------------------------------- */
+/*                        AUTHORIZATION LIFECYCLE TRACKING                   */
+/* -------------------------------------------------------------------------- */
 
-function validateRequestIntegrity(
-  req
-) {
-  return Boolean(
-    req &&
-      req.headers &&
-      typeof req.headers ===
-        "object"
-  );
-}
-
-function createAuthorizationCheckpoint(
-  stage,
-  passed
-) {
+function createAuthorizationCheckpoint(stage, passed) {
   return {
     stage,
     passed,
-    timestamp:
-      Date.now(),
+    timestamp: Date.now(),
+    memorySnapshot: process.memoryUsage().heapUsed,
   };
 }
 
@@ -125,165 +121,132 @@ function buildAuthLifecycle() {
   return {
     checkpoints: [],
     validationVersion: 1,
+    startedAt: Date.now(),
+    status: "initializing",
   };
 }
 
-function appendCheckpoint(
-  lifecycle,
-  stage,
-  passed
-) {
+function appendCheckpoint(lifecycle, stage, passed) {
   lifecycle.checkpoints.push(
-    createAuthorizationCheckpoint(
-      stage,
-      passed
-    )
+    createAuthorizationCheckpoint(stage, passed)
   );
+
+  lifecycle.status = passed ? "processing" : "failed";
 
   return lifecycle;
 }
 
-export const authenticateUser =
-  async (
-    req,
-    res,
-    next
-  ) => {
-    try {
-      const authLifecycle =
-        buildAuthLifecycle();
+/* -------------------------------------------------------------------------- */
+/*                           ADDITIONAL VALIDATORS                            */
+/* -------------------------------------------------------------------------- */
 
-      if (
-        !validateRequestIntegrity(
-          req
-        )
-      ) {
-        return res
-          .status(400)
-          .json(
-            createAuthError(
-              "Malformed request",
-              "REQUEST_INVALID"
-            )
-          );
-      }
+function isTokenTooLong(token) {
+  return token.length > 2048;
+}
 
-      appendCheckpoint(
-        authLifecycle,
-        "request_integrity",
-        true
-      );
+function isSuspiciousToken(token) {
+  return token.includes("..") || token.includes("//");
+}
 
-      const authHeader =
-        req.headers.authorization;
+function sanitizeToken(token) {
+  return token.trim();
+}
 
-      const token =
-        extractBearerToken(
-          authHeader
-        );
+/* -------------------------------------------------------------------------- */
+/*                              MAIN MIDDLEWARE                               */
+/* -------------------------------------------------------------------------- */
 
-      appendCheckpoint(
-        authLifecycle,
-        "token_extracted",
-        Boolean(token)
-      );
+export const authenticateUser = async (req, res, next) => {
+  const authLifecycle = buildAuthLifecycle();
 
-      if (!token) {
-        return res
-          .status(401)
-          .json(
-            createAuthError(
-              "Authorization token missing",
-              "TOKEN_MISSING"
-            )
-          );
-      }
+  try {
+    /* ---------------------- REQUEST VALIDATION ---------------------- */
 
-      if (
-        !isValidTokenFormat(
-          token
-        )
-      ) {
-        return res
-          .status(401)
-          .json(
-            createAuthError(
-              "Malformed authorization token",
-              "TOKEN_INVALID_FORMAT"
-            )
-          );
-      }
-
-      appendCheckpoint(
-        authLifecycle,
-        "token_format",
-        true
-      );
-
-      const authContext =
-        createAuthContext(
-          req,
-          token
-        );
-
-      const {
-        user,
-        error,
-      } =
-        await resolveUserSession(
-          token
-        );
-
-      if (
-        !isAuthenticatedUser(
-          user,
-          error
-        )
-      ) {
-        return res
-          .status(401)
-          .json(
-            createAuthError(
-              "Invalid authentication token",
-              "TOKEN_VERIFICATION_FAILED"
-            )
-          );
-      }
-
-      appendCheckpoint(
-        authLifecycle,
-        "token_verified",
-        true
-      );
-
-      req.authContext =
-        authContext;
-
-      req.authLifecycle =
-        authLifecycle;
-
-      req.user = user;
-
-      appendCheckpoint(
-        authLifecycle,
-        "authorization_complete",
-        true
-      );
-
-      next();
-    } catch (error) {
-      console.error(
-        "Authentication middleware error:",
-        error
-      );
+    if (!validateRequestIntegrity(req)) {
+      appendCheckpoint(authLifecycle, "request_integrity", false);
 
       return res
-        .status(500)
-        .json(
-          createAuthError(
-            "Internal authentication failure",
-            "AUTH_INTERNAL_ERROR"
-          )
-        );
+        .status(400)
+        .json(createAuthError("Malformed request", "REQUEST_INVALID"));
     }
-  };
+
+    appendCheckpoint(authLifecycle, "request_integrity", true);
+
+    /* ---------------------- TOKEN EXTRACTION ------------------------ */
+
+    const rawToken = extractBearerToken(req.headers.authorization);
+
+    appendCheckpoint(authLifecycle, "token_extracted", Boolean(rawToken));
+
+    if (!rawToken) {
+      return res
+        .status(401)
+        .json(createAuthError("Authorization token missing", "TOKEN_MISSING"));
+    }
+
+    const token = sanitizeToken(rawToken);
+
+    /* ---------------------- TOKEN VALIDATION ------------------------ */
+
+    if (!isValidTokenFormat(token)) {
+      appendCheckpoint(authLifecycle, "token_format", false);
+
+      return res.status(401).json(
+        createAuthError("Malformed authorization token", "TOKEN_INVALID_FORMAT")
+      );
+    }
+
+    if (isTokenTooLong(token) || isSuspiciousToken(token)) {
+      appendCheckpoint(authLifecycle, "token_security", false);
+
+      return res.status(401).json(
+        createAuthError("Suspicious token detected", "TOKEN_SECURITY_RISK")
+      );
+    }
+
+    appendCheckpoint(authLifecycle, "token_format", true);
+    appendCheckpoint(authLifecycle, "token_security", true);
+
+    /* ---------------------- CONTEXT BUILD --------------------------- */
+
+    const authContext = createAuthContext(req, token);
+
+    /* ---------------------- SESSION RESOLUTION ---------------------- */
+
+    const { user, error } = await resolveUserSession(token);
+
+    if (!isAuthenticatedUser(user, error)) {
+      appendCheckpoint(authLifecycle, "token_verified", false);
+
+      return res.status(401).json(
+        createAuthError("Invalid authentication token", "TOKEN_VERIFICATION_FAILED")
+      );
+    }
+
+    appendCheckpoint(authLifecycle, "token_verified", true);
+
+    /* ---------------------- FINALIZE ------------------------------- */
+
+    req.authContext = authContext;
+    req.authLifecycle = {
+      ...authLifecycle,
+      status: "completed",
+    };
+    req.user = user;
+
+    appendCheckpoint(authLifecycle, "authorization_complete", true);
+
+    return next();
+  } catch (error) {
+    appendCheckpoint(authLifecycle, "system_error", false);
+
+    console.error("Authentication middleware error:", {
+      error,
+      lifecycle: authLifecycle,
+    });
+
+    return res.status(500).json(
+      createAuthError("Internal authentication failure", "AUTH_INTERNAL_ERROR")
+    );
+  }
+};
