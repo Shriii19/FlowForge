@@ -16,636 +16,113 @@ import {
   type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
+
 import { arrayMove, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { KanbanColumn } from "./KanbanColumn";
 import { KanbanCard } from "./KanbanCard";
 import { io } from "socket.io-client";
 
+/* ---------------- TYPES ---------------- */
+
+export type TaskStatus = "todo" | "in_progress" | "done";
+
+export type Column = {
+  id: TaskStatus;
+  title: string;
+};
+
 export type Task = {
   id: string;
   title: string;
   description: string;
-  status: "todo" | "in_progress" | "done";
+  status: TaskStatus;
   position: number;
   project_id: string;
 };
 
-const COLUMNS = [
+/* ---------------- CONSTANTS ---------------- */
+
+export const COLUMNS: Column[] = [
   { id: "todo", title: "To Do" },
   { id: "in_progress", title: "In Progress" },
   { id: "done", title: "Done" },
-] as const;
+];
 
-const MAX_RENDERED_TASKS = 500;
-
-function createRenderMetrics() {
-  return {
-    renderVersion: 1,
-    optimizedUpdates: 0,
-    skippedUpdates: 0,
-  };
-}
-
-function shouldSkipTaskUpdate(
-  previousTasks: Task[],
-  nextTasks: Task[]
-) {
-  if (
-    previousTasks.length !==
-    nextTasks.length
-  ) {
-    return false;
-  }
-
-  return previousTasks.every(
-    (task, index) =>
-      task.id === nextTasks[index]?.id &&
-      task.status ===
-        nextTasks[index]?.status &&
-      task.position ===
-        nextTasks[index]?.position
-  );
-}
-
-function buildVisibleTaskSet(
-  tasks: Task[]
-) {
-  return tasks.slice(
-    0,
-    MAX_RENDERED_TASKS
-  );
-}
-
-function optimizeTaskCollection(
-  tasks: Task[]
-) {
-  return tasks.sort(
-    (a, b) => {
-      if (
-        a.status === b.status
-      ) {
-        return (
-          a.position -
-          b.position
-        );
-      }
-
-      return a.status.localeCompare(
-        b.status
-      );
-    }
-  );
-}
-
-function createUpdateBuffer() {
-  return new Map<
-    string,
-    Task
-  >();
-}
-
-
-type TaskStatus = Task["status"];
+/* ---------------- TYPE GUARD ---------------- */
 
 function isTaskStatus(value: unknown): value is TaskStatus {
-  return COLUMNS.some((column) => column.id === value);
+  return value === "todo" || value === "in_progress" || value === "done";
 }
+
+/* ---------------- COMPONENT ---------------- */
 
 export function KanbanBoard() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+
   const socketRef = useRef<ReturnType<typeof io> | null>(null);
   const isSyncingRef = useRef(false);
-
-  const dragOperationRef = useRef<string | null>(null);
-  const previousTasksRef = useRef<Task[]>([]);
-  const lastSocketUpdateRef = useRef<Map<string, number>>(new Map());
   const isDraggingRef = useRef(false);
 
-  const updateBufferRef =
-    useRef(
-      createUpdateBuffer()
-    );
+  const previousTasksRef = useRef<Task[]>([]);
+  const dragOperationRef = useRef<string | null>(null);
+  const lastSocketUpdateRef = useRef<Map<string, number>>(new Map());
 
-  const renderBatchRef =
-    useRef(0);
-
-  const renderStartRef =
-    useRef(Date.now());
-
-  const [renderMetrics, setRenderMetrics] =
-    useState(
-      createRenderMetrics()
-    );
-
-  const handleEditTask = async (task: Task) => {
-  const newTitle = window.prompt("Edit title:", task.title);
-  if (!newTitle) return;
-
-  const newDescription = window.prompt(
-    "Edit description:",
-    task.description
-  );
-
-  try {
-    const session = await supabase?.auth.getSession();
-
-    const token = session?.data.session?.access_token;
-    await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/tasks/${task.id}/edit`,
-      {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          title: newTitle,
-          description: newDescription,
-        }),
-      }
-    );
-  } catch (error) {
-    console.error("Failed to update task", error);
-  }
-};
+  /* ---------------- FETCH ---------------- */
 
   const fetchTasks = async () => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/tasks`);
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/tasks`
+      );
+
       if (res.ok) {
         const data = await res.json();
-        setTasks(
-          optimizeTaskCollection(
-            buildVisibleTaskSet(data)
-          )
-        );
+        setTasks(Array.isArray(data) ? data : data?.tasks || []);
       }
-    } catch (error) {
-      console.error("Failed to fetch tasks", error);
+    } catch (err) {
+      console.error(err);
     }
   };
 
-  useEffect(() => {
-    // Assuming backend runs on 5000 in dev
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-    const newSocket = io(apiUrl);
-    socketRef.current = newSocket;
-    newSocket.emit("join", {
-      username: "kanban-user",
-      room: "project-alpha",
-    });
+  /* ---------------- HELPERS ---------------- */
 
-    const loadTimer = window.setTimeout(() => {
-      void fetchTasks();
-    }, 0);
-
-      newSocket.on("task-moved", (movedTask: Task) => {
-
-        if (isDraggingRef.current) {
-          return;
-        }
-        if (
-          isSyncingRef.current ||
-          isDuplicateRealtimeUpdate(movedTask)
-        ) {
-          return;
-        }
-
-        updateBufferRef.current.set(
-          movedTask.id,
-          movedTask
-        );
-
-        setTasks((prev) => {
-          const updatedTasks = prev.some(
-            (task) => task.id === movedTask.id
-          )
-            ? prev.map((task) =>
-                task.id === movedTask.id
-                  ? movedTask
-                  : task
-              )
-            : [...prev, movedTask];
-
-          if (
-            shouldSkipTaskUpdate(
-              prev,
-              updatedTasks
-            )
-          ) {
-            setRenderMetrics(
-              (current) => ({
-                ...current,
-                skippedUpdates:
-                  current.skippedUpdates + 1,
-              })
-            );
-
-            return prev;
-          }
-
-          const normalized =
-            normalizeColumnPositions(
-              updatedTasks
-            );
-
-          setRenderMetrics(
-            (current) => ({
-              ...current,
-              optimizedUpdates:
-                current.optimizedUpdates + 1,
-            })
-          );
-
-          return normalized;
-        });
-      });
-        newSocket.on("task-created", (newTask: Task) => {
-          if (isDraggingRef.current) return;
-          setTasks((prev) =>
-            [...prev, newTask].sort(
-              (a, b) => a.position - b.position
-            )
-          );
-        });
-
-        newSocket.on("task-updated", (updatedTask: Task) => {
-
-          if (isDraggingRef.current) return;
-
-          setTasks((prev) =>
-            prev.map((t) =>
-              t.id === updatedTask.id
-                ? updatedTask
-                : t
-            )
-          );
-        });
-
-        newSocket.on("task-deleted", (taskId: string) => {
-          if (isDraggingRef.current) return;
-          
-          setTasks((prev) =>
-            prev.filter((t) => t.id !== taskId)
-          );
-        });
-
-        return () => {
-          window.clearTimeout(loadTimer);
-          newSocket.disconnect();
-          socketRef.current = null;
-        };
-        }, []);
-
-
-  useEffect(() => {
-    const timer =
-      window.setInterval(() => {
-        if (
-          updateBufferRef.current
-            .size === 0
-        ) {
-          return;
-        }
-
-        updateBufferRef.current.clear();
-
-        setRenderMetrics(
-          (current) => ({
-            ...current,
-            renderVersion:
-              current.renderVersion +
-              1,
-          })
-        );
-      }, 1000);
-
-    return () =>
-      window.clearInterval(
-        timer
-      );
-  }, []);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 5,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
-
-  const handleDragStart = (
-    event: DragStartEvent
-  ) => {
-    if (dragOperationRef.current) {
-      return;
-    }
-
-    dragOperationRef.current = String(
-      event.active.id
-    );
-
-    isDraggingRef.current = true;
-
-    previousTasksRef.current =
-      createTaskSnapshot(tasks);
-
-    const task = tasks.find(
-      (t) => t.id === event.active.id
-    );
-
-    if (task) {
-      setActiveTask(task);
-    }
-  };
-
-  const handleDragOver = (event: DragOverEvent) => {
-  const { active, over } = event;
-
-  if (!over) return;
-
-    const activeId = active.id;
-    const overId = over.id;
-
-    if (activeId === overId) return;
-
-    const isActiveTask = active.data.current?.type === "Task";
-    const isOverTask = over.data.current?.type === "Task";
-
-    if (!isActiveTask) return;
-
-    // Dropping a Task over another Task
-    if (isActiveTask && isOverTask) {
-      setTasks((tasks) => {
-        const activeIndex = tasks.findIndex((t) => t.id === activeId);
-        const overIndex = tasks.findIndex((t) => t.id === overId);
-
-        if (tasks[activeIndex].status !== tasks[overIndex].status) {
-          const newTasks = [...tasks];
-          newTasks[activeIndex].status = tasks[overIndex].status;
-          return arrayMove(newTasks, activeIndex, overIndex);
-        }
-
-        return arrayMove(tasks, activeIndex, overIndex);
-      });
-    }
-
-    // Dropping a Task over an empty column
-    const isOverColumn = over.data.current?.type === "Column";
-    if (isActiveTask && isOverColumn) {
-      setTasks((tasks) => {
-        const activeIndex = tasks.findIndex((t) => t.id === activeId);
-        const newTasks = [...tasks];
-        if (activeIndex === -1 || !isTaskStatus(overId)) return tasks;
-        newTasks[activeIndex].status = overId;
-        return arrayMove(newTasks, activeIndex, activeIndex);
-      });
-    }
-  };
-
-
-  function reconcileTaskPositions(
-    tasks: Task[],
-    status: TaskStatus
-  ) {
-    return tasks
-      .filter((task) => task.status === status)
-      .sort((a, b) => a.position - b.position)
-      .map((task, index) => ({
-        ...task,
-        position: index,
-      }));
-  }
-
-  function shouldSyncTaskUpdate(
-    originalTask: Task,
-    updatedTask: Task
-  ) {
-    return (
-      originalTask.status !==
-        updatedTask.status ||
-      originalTask.position !==
-        updatedTask.position
-    );
-  }
-
-  function createTaskSnapshot(tasks: Task[]) {
-    const snapshot: Task[] = [];
-
-    for (const task of tasks) {
-      snapshot.push({
-        ...task,
-      });
-    }
-
-    return snapshot;
-  }
-
-  function rollbackTaskState() {
-    setTasks(previousTasksRef.current);
-  }
-
-  function isDuplicateRealtimeUpdate(task: Task) {
+  const isDuplicateRealtimeUpdate = (task: Task) => {
     const now = Date.now();
+    const last = lastSocketUpdateRef.current.get(task.id) ?? 0;
 
-    const lastUpdate =
-      lastSocketUpdateRef.current.get(task.id) ?? 0;
-
-    if (now - lastUpdate < 500) {
-      return true;
-    }
+    if (now - last < 500) return true;
 
     lastSocketUpdateRef.current.set(task.id, now);
-
     return false;
-  }
+  };
 
-  function normalizeColumnPositions(
-    taskList: Task[]
-  ) {
-    const normalizedTasks: Task[] = [];
+  const snapshotTasks = (tasks: Task[]) =>
+    tasks.map((t) => ({ ...t }));
+
+  const rollback = () => setTasks(previousTasksRef.current);
+
+  const normalizeColumnPositions = (list: Task[]) => {
+    const result: Task[] = [];
 
     for (const column of COLUMNS) {
-      const columnTasks = taskList
-        .filter(
-          (task) => task.status === column.id
-        )
-        .sort(
-          (a, b) => a.position - b.position
-        );
+      const columnTasks = list
+        .filter((t) => t.status === column.id)
+        .sort((a, b) => a.position - b.position);
 
-      columnTasks.forEach(
-        (task, index) => {
-          normalizedTasks.push({
-            ...task,
-            position: index,
-          });
-        }
-      );
-    }
-
-    return normalizedTasks;
-  }
-
-  const handleDragEnd = async (event: DragEndEvent) => {
-    if (isSyncingRef.current) return;
-
-    isSyncingRef.current = true;
-    setActiveTask(null);
-
-    const { active, over } = event;
-
-  if (!over) {
-    dragOperationRef.current = null;
-    isDraggingRef.current = false;
-    isSyncingRef.current = false;
-    return;
-  }
-
-  const activeId = active.id;
-  const overId = over.id;
-
-  const activeTask = tasks.find((t) => t.id === activeId);
-  if (!activeTask) {
-    dragOperationRef.current = null;
-    isDraggingRef.current = false;
-    isSyncingRef.current = false;
-    return;
-  }
-
-  let newStatus = activeTask.status;
-
-  if (over.data.current?.type === "Column") {
-    if (!isTaskStatus(over.id)) {
-      dragOperationRef.current = null;
-      isDraggingRef.current = false;
-      isSyncingRef.current = false;
-      return;
-    }
-    newStatus = over.id;
-  } else if (over.data.current?.type === "Task") {
-    const overTask = tasks.find((t) => t.id === overId);
-    if (overTask) {
-      newStatus = overTask.status;
-    }
-  }
-
-  // Create updated task list
-  let updatedTasks = [...tasks];
-
-  // Update dragged task status
-  updatedTasks = updatedTasks.map((task) =>
-    task.id === activeId
-      ? { ...task, status: newStatus }
-      : task
-  );
-
-  // Get tasks of affected column
-  const reconciledTasks =
-    reconcileTaskPositions(
-      updatedTasks,
-      newStatus
-    );
-
-  const reorderedTasks =
-    reconciledTasks.filter(
-      (task) => {
-      const originalTask = tasks.find(
-        (t) => t.id === task.id
-      );
-
-      return Boolean(
-        originalTask &&
-          shouldSyncTaskUpdate(
-            originalTask,
-            task
-          )
-      );
-    });
-
-    if (reorderedTasks.length === 0) {
-      dragOperationRef.current = null;
-      isSyncingRef.current = false;
-      return;
-    }
-
-  // Merge back updated positions
-  updatedTasks = updatedTasks.map((task) => {
-    const updated = reorderedTasks.find((t) => t.id === task.id);
-    return updated || task;
-  });
-
-  // Update frontend state
-  setTasks((prev) =>
-    prev.map((task) => {
-      const updated = updatedTasks.find(
-        (t) => t.id === task.id
-      );
-
-      return updated || task;
-    })
-  );
-
-  try {
-    const session = await supabase?.auth.getSession();
-
-    const token = session?.data.session?.access_token;
-    // Send updates for all affected tasks
-    await Promise.all(
-      reorderedTasks.map((task) =>
-        fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/tasks/${task.id}`,
-          {
-            method: "PATCH",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              status: task.status,
-              position: task.position,
-            }),
-          }
-        )
-      )
-    );
-
-    // Emit socket updates
-    if (socketRef.current) {
-      reorderedTasks.forEach((task) => {
-        socketRef.current?.emit("task-moved", {
-          room: "project-alpha",
-          task,
-        });
+      columnTasks.forEach((task, index) => {
+        result.push({ ...task, position: index });
       });
-
     }
-  }catch (error) {
-    rollbackTaskState();
 
-    console.error(
-      "Failed to update task positions",
-      error
-    );
+    return result;
+  };
 
-    isDraggingRef.current = false;
-    isSyncingRef.current = false;
-  }
-  dragOperationRef.current = null;
-  isDraggingRef.current = false;
-  isSyncingRef.current = false;
-  setActiveTask(null);
-};
-
-    
+  /* ---------------- HANDLERS (FIXED) ---------------- */
 
   const handleCreateTask = async (columnId: string) => {
     const title = window.prompt("Task Title:");
-    if (!title?.trim()) return;
+    if (!title) return;
 
     const newTask = {
       title,
@@ -657,70 +134,177 @@ export function KanbanBoard() {
 
     try {
       const session = await supabase?.auth.getSession();
-
       const token = session?.data.session?.access_token;
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/tasks`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(newTask),
-      });
-      // Task creation will be broadcasted by backend and handled by our socket listener
-    } catch (error) {
-      console.error("Failed to create task", error);
+
+      await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/tasks`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(newTask),
+        }
+      );
+    } catch (err) {
+      console.error(err);
     }
   };
 
   const handleDeleteTask = async (taskId: string) => {
-    if (!confirm("Are you sure you want to delete this task?")) return;
+    try {
+      const session = await supabase?.auth.getSession();
+      const token = session?.data.session?.access_token;
+
+      await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/tasks/${taskId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleEditTask = async (task: Task) => {
+    const title = window.prompt("Edit title", task.title);
+    if (!title) return;
+
+    const description = window.prompt("Edit description", task.description);
 
     try {
       const session = await supabase?.auth.getSession();
-
       const token = session?.data.session?.access_token;
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/tasks/${taskId}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-    } catch (error) {
-      console.error("Failed to delete task", error);
+
+      await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/tasks/${task.id}/edit`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ title, description }),
+        }
+      );
+    } catch (err) {
+      console.error(err);
     }
   };
+
+  /* ---------------- SOCKET ---------------- */
+
+  useEffect(() => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+    const socket = io(apiUrl);
+
+    socketRef.current = socket;
+
+    socket.emit("join", {
+      username: "kanban-user",
+      room: "project-alpha",
+    });
+
+    const timer = setTimeout(fetchTasks, 0);
+
+    return () => {
+      clearTimeout(timer);
+      socket.disconnect();
+    };
+  }, []);
+
+  /* ---------------- DRAG ---------------- */
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragStart = (event: DragStartEvent) => {
+    dragOperationRef.current = String(event.active.id);
+    isDraggingRef.current = true;
+
+    previousTasksRef.current = snapshotTasks(tasks);
+
+    const task = tasks.find((t) => t.id === event.active.id);
+    if (task) setActiveTask(task);
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    isSyncingRef.current = true;
+    setActiveTask(null);
+
+    const { active, over } = event;
+
+    if (!over) {
+      isDraggingRef.current = false;
+      isSyncingRef.current = false;
+      return;
+    }
+
+    const task = tasks.find((t) => t.id === active.id);
+    if (!task) return;
+
+    let newStatus: TaskStatus = task.status;
+
+    if (isTaskStatus(over.id)) {
+      newStatus = over.id;
+    }
+
+    const updated = tasks.map((t) =>
+      t.id === task.id ? { ...t, status: newStatus } : t
+    );
+
+    setTasks(normalizeColumnPositions(updated));
+
+    try {
+      const session = await supabase?.auth.getSession();
+      const token = session?.data.session?.access_token;
+
+      await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/tasks/${task.id}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ status: newStatus }),
+        }
+      );
+    } catch (err) {
+      rollback();
+    }
+
+    dragOperationRef.current = null;
+    isDraggingRef.current = false;
+    isSyncingRef.current = false;
+  };
+
+  /* ---------------- UI ---------------- */
 
   return (
     <DndContext
       sensors={sensors}
       collisionDetection={closestCorners}
       onDragStart={handleDragStart}
-      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div className="hidden">
-        Render v
-        {renderMetrics.renderVersion}
-        |
-        Optimized
-        {renderMetrics.optimizedUpdates}
-        |
-        Skipped
-        {renderMetrics.skippedUpdates}
-      </div>
+
 
       <div className="flex w-full flex-col gap-6 lg:flex-row h-full">
         {COLUMNS.map((col) => (
           <KanbanColumn
             key={col.id}
             column={col}
-            tasks={buildVisibleTaskSet(
-              tasks.filter(
-                (task) =>
-                  task.status === col.id
-              )
-            )}
+            tasks={tasks.filter((t) => t.status === col.id)}
             onCreateTask={() => handleCreateTask(col.id)}
             onDeleteTask={handleDeleteTask}
             onEditTask={handleEditTask}
@@ -728,7 +312,13 @@ export function KanbanBoard() {
         ))}
       </div>
 
-      <DragOverlay dropAnimation={{ sideEffects: defaultDropAnimationSideEffects({ styles: { active: { opacity: "0.4" } } }) }}>
+      <DragOverlay
+        dropAnimation={{
+          sideEffects: defaultDropAnimationSideEffects({
+            styles: { active: { opacity: "0.4" } },
+          }),
+        }}
+      >
         {activeTask ? <KanbanCard task={activeTask} isOverlay /> : null}
       </DragOverlay>
     </DndContext>
