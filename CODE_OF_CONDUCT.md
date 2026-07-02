@@ -11,7 +11,3 @@
 - Toxic language
 - Spam or irrelevant content
 - Personal attacks
-
-## Enforcement
-
-Maintainers have the right to remove harmful contributions.
