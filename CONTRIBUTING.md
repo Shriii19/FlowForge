@@ -107,9 +107,3 @@ Open an issue or ask in discussions.
 - Code builds successfully
 - No errors in console
 - Follows project structure
-
----
-
-## 💬 Need Help?
-
-Open an issue or ask in discussions.
