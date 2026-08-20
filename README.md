@@ -188,12 +188,6 @@ Contributors are welcome to join and earn points by solving issues tagged with d
 
 ---
 
-## 📜 License
-
-This project is licensed under the MIT License.
-
----
-
 
 ## ⭐ Support
 
