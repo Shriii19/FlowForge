@@ -184,6 +184,22 @@ export default function ChatPage() {
     setSessionRecovered,
   ] = useState(false);
 
+  // Auto-fill username from Supabase session
+  useEffect(() => {
+    const getUsername = async () => {
+      if (!supabase) return;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const name =
+          session.user.user_metadata?.full_name ||
+          session.user.email?.split("@")[0] ||
+          "User";
+        setUsername(name);
+      }
+    };
+    getUsername();
+  }, []);
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
